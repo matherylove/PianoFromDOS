@@ -807,32 +807,66 @@ HWND CreateRebar( HWND hWndOwner )
     SetWindowPos( hWndPosn, NULL, 0, 0, iInitialBarWidth, 20,
                   SWP_NOZORDER | SWP_NOACTIVATE );
 
-    REBARBANDINFOA rbbi;
-    ZeroMemory( &rbbi, sizeof( rbbi ) );
-    rbbi.cbSize = sizeof( rbbi );
-    rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
-    rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
-    rbbi.hwndChild = hWndToolbar;
-    rbbi.cxMinChild = 1;
-    rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 31;
-    rbbi.cyIntegral = 0;
-    rbbi.cx = iInitialBarWidth;
+    // Win9x/ME common-controls are ANSI.  NT-family Windows uses the Unicode
+    // rebar window correctly, so use the matching band message for each family.
+    // Forcing RB_INSERTBANDA on an NT Unicode rebar can fail (observed on Win11).
+    const bool bWin9x = ( GetVersion() & 0x80000000UL ) != 0;
+    BOOL bBandOK = FALSE;
 
-    if ( !SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi ) )
-        return NULL;
+    if ( bWin9x )
+    {
+        REBARBANDINFOA rbbi;
+        ZeroMemory( &rbbi, sizeof( rbbi ) );
+        rbbi.cbSize = sizeof( rbbi );
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
+        rbbi.hwndChild = hWndToolbar;
+        rbbi.cxMinChild = 1;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 31;
+        rbbi.cyIntegral = 0;
+        rbbi.cx = iInitialBarWidth;
+        bBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
+        if ( !bBandOK ) return NULL;
 
-    ZeroMemory( &rbbi, sizeof( rbbi ) );
-    rbbi.cbSize = sizeof( rbbi );
-    rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
-    rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
-    rbbi.hwndChild = hWndPosn;
-    rbbi.cxMinChild = 1;
-    rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
-    rbbi.cyIntegral = 0;
-    rbbi.cx = iInitialBarWidth;
+        ZeroMemory( &rbbi, sizeof( rbbi ) );
+        rbbi.cbSize = sizeof( rbbi );
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
+        rbbi.hwndChild = hWndPosn;
+        rbbi.cxMinChild = 1;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
+        rbbi.cyIntegral = 0;
+        rbbi.cx = iInitialBarWidth;
+        bBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
+        if ( !bBandOK ) return NULL;
+    }
+    else
+    {
+        REBARBANDINFOW rbbi;
+        ZeroMemory( &rbbi, sizeof( rbbi ) );
+        rbbi.cbSize = sizeof( rbbi );
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
+        rbbi.hwndChild = hWndToolbar;
+        rbbi.cxMinChild = 1;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 31;
+        rbbi.cyIntegral = 0;
+        rbbi.cx = iInitialBarWidth;
+        bBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
+        if ( !bBandOK ) return NULL;
 
-    if ( !SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi ) )
-        return NULL;
+        ZeroMemory( &rbbi, sizeof( rbbi ) );
+        rbbi.cbSize = sizeof( rbbi );
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
+        rbbi.hwndChild = hWndPosn;
+        rbbi.cxMinChild = 1;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
+        rbbi.cyIntegral = 0;
+        rbbi.cx = iInitialBarWidth;
+        bBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
+        if ( !bBandOK ) return NULL;
+    }
 
     // Give the rebar a real initial size before SizeWindows reads its height.
     // There is no RB_AUTOSIZE message on the Win98-era common-controls API;
