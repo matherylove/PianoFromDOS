@@ -36,7 +36,7 @@ TSQueue< MSG > g_MsgQueue; // Producer/consumer to hold events for our game thre
 static HANDLE g_hStartupLog = INVALID_HANDLE_VALUE;
 static HMODULE g_hUnicows = NULL;
 
-static void PFD_StartupLogA( const char *text )
+void PFD_StartupLogA( const char *text )
 {
     if ( g_hStartupLog == INVALID_HANDLE_VALUE || !text ) return;
     DWORD written = 0;
@@ -70,7 +70,7 @@ INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdL
     g_hInstance = hInstance;
 
     // Keep diagnostics strictly ANSI until MSLU is confirmed available.
-    g_hStartupLog = CreateFileA( "PianoFromDOS-startup.log", GENERIC_WRITE, FILE_SHARE_READ, NULL,
+    g_hStartupLog = CreateFileA( "PianoFromDOS-startup.log", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
     PFD_StartupLogA( "PianoFromDOS entered WinMain.\r\n" );
 

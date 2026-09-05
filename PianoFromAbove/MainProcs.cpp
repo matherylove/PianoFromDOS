@@ -23,6 +23,22 @@
 #include "Config.h"
 
 static WNDPROC g_pPrevBarProc; // Have to override the toolbar proc to make controls transparent
+static bool g_bPFDRebarFallback = false;
+static WNDPROC g_pPrevFallbackBarProc = NULL;
+
+static void PFD_LayoutFallbackBar( HWND hWndBar, HWND hWndToolbar, HWND hWndPosn,
+                                   int iWidth, int iToolbarHeight, int iPosnHeight );
+
+static LRESULT CALLBACK PFD_FallbackBarProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+    if ( msg == WM_COMMAND || msg == WM_NOTIFY )
+        return SendMessage( GetParent( hWnd ), msg, wParam, lParam );
+    return CallWindowProc( g_pPrevFallbackBarProc, hWnd, msg, wParam, lParam );
+}
+
+// Startup logger is implemented by PianoFromAbove.cpp and intentionally uses
+// only ANSI Win32 I/O so it is safe before/without MSLU on Win9x.
+extern void PFD_StartupLogA( const char *text );
 
 //-----------------------------------------------------------------------------
 // Name: MsgProc()
@@ -371,7 +387,7 @@ VOID SizeWindows( int iMainWidth, int iMainHeight )
         iBarHeight = rcBarDlg.bottom - rcBarDlg.top;
         if ( !iBarHeight )
         {
-            iBarHeight = ( int )SendMessage( g_hWndBar, RB_GETBARHEIGHT, 0, 0 );
+            iBarHeight = g_bPFDRebarFallback ? 51 : ( int )SendMessage( g_hWndBar, RB_GETBARHEIGHT, 0, 0 );
             if ( !iBarHeight ) iBarHeight = 51;
         }
         if ( hdwp ) hdwp = DeferWindowPos( hdwp, g_hWndBar, NULL, 0, 0, iMainWidth, iBarHeight, swpFlags );
@@ -387,6 +403,14 @@ VOID SizeWindows( int iMainWidth, int iMainHeight )
     if ( cView.GetFullScreen() ) iLibWidth = 0;
     if ( hdwp ) hdwp = DeferWindowPos( hdwp, g_hWndGfx, NULL, iLibWidth, iBarHeight,  iMainWidth - iLibWidth, iMainHeight - iBarHeight, swpFlags );
     if ( hdwp ) EndDeferWindowPos( hdwp );
+
+    if ( g_bPFDRebarFallback && cView.GetControls() )
+    {
+        HWND hWndToolbar = GetDlgItem( g_hWndBar, IDC_TOPTOOLBAR );
+        HWND hWndPosn = GetDlgItem( g_hWndBar, IDC_POSNCTRL );
+        if ( hWndToolbar && hWndPosn )
+            PFD_LayoutFallbackBar( g_hWndBar, hWndToolbar, hWndPosn, iMainWidth, 31, 20 );
+    }
 }
 
 LRESULT WINAPI GfxProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -695,13 +719,45 @@ LRESULT WINAPI BarProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 
 static void PFD_LogRebarStage( const char *pszStage, DWORD dwError )
 {
-    FILE *fp = fopen( "PianoFromDOS-startup.log", "a" );
-    if ( !fp ) return;
+    char szLine[320];
     if ( dwError )
-        fprintf( fp, "CreateRebar: %s (GetLastError=%lu)\r\n", pszStage, ( unsigned long )dwError );
+        wsprintfA( szLine, "CreateRebar: %s (GetLastError=%lu)\r\n",
+                   pszStage, ( unsigned long )dwError );
     else
-        fprintf( fp, "CreateRebar: %s\r\n", pszStage );
-    fclose( fp );
+        wsprintfA( szLine, "CreateRebar: %s\r\n", pszStage );
+    PFD_StartupLogA( szLine );
+}
+
+static void PFD_LayoutFallbackBar( HWND hWndBar, HWND hWndToolbar, HWND hWndPosn,
+                                   int iWidth, int iToolbarHeight, int iPosnHeight )
+{
+    if ( iWidth < 1 ) iWidth = 1;
+    SetWindowPos( hWndToolbar, NULL, 0, 0, iWidth, iToolbarHeight,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
+    SetWindowPos( hWndPosn, NULL, 0, iToolbarHeight, iWidth, iPosnHeight,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
+    SetWindowPos( hWndBar, NULL, 0, 0, iWidth, iToolbarHeight + iPosnHeight,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
+}
+
+static BOOL PFD_GetPositionBandRect( RECT *prc )
+{
+    if ( !prc || !g_hWndBar ) return FALSE;
+    if ( !g_bPFDRebarFallback && SendMessage( g_hWndBar, RB_GETRECT, 1, ( LPARAM )prc ) )
+        return TRUE;
+
+    HWND hWndPosn = GetDlgItem( g_hWndBar, IDC_POSNCTRL );
+    if ( !hWndPosn ) return FALSE;
+    GetWindowRect( hWndPosn, prc );
+    POINT pt = { prc->left, prc->top };
+    ScreenToClient( g_hWndBar, &pt );
+    int cx = prc->right - prc->left;
+    int cy = prc->bottom - prc->top;
+    prc->left = pt.x;
+    prc->top = pt.y;
+    prc->right = pt.x + cx;
+    prc->bottom = pt.y + cy;
+    return TRUE;
 }
 
 HWND CreateRebar( HWND hWndOwner )
@@ -714,6 +770,7 @@ HWND CreateRebar( HWND hWndOwner )
     const int iPosnHeight = 20;
     const int iInitialBarHeight = iToolbarHeight + iPosnHeight;
 
+    g_bPFDRebarFallback = false;
     SetLastError( 0 );
     HWND hWndRebar = CreateWindowEx( WS_EX_CONTROLPARENT, REBARCLASSNAME, NULL,
         WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CCS_NODIVIDER | RBS_VARHEIGHT,
@@ -721,10 +778,26 @@ HWND CreateRebar( HWND hWndOwner )
         hWndOwner, ( HMENU )IDC_TOPREBAR, g_hInstance, NULL );
     if ( !hWndRebar )
     {
-        PFD_LogRebarStage( "FAILED creating rebar window", GetLastError() );
-        return NULL;
+        DWORD dwErr = GetLastError();
+        PFD_LogRebarStage( "rebar class window creation failed; using static fallback container", dwErr );
+        SetLastError( 0 );
+        hWndRebar = CreateWindowExA( WS_EX_CONTROLPARENT, "STATIC", "",
+            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+            0, 0, iInitialBarWidth, iInitialBarHeight,
+            hWndOwner, ( HMENU )IDC_TOPREBAR, g_hInstance, NULL );
+        if ( !hWndRebar )
+        {
+            DWORD dwFallbackErr = GetLastError();
+            PFD_LogRebarStage( "FAILED creating fallback bar container", dwFallbackErr );
+            SetLastError( dwFallbackErr );
+            return NULL;
+        }
+        g_bPFDRebarFallback = true;
+        g_pPrevFallbackBarProc = ( WNDPROC )SetWindowLongPtr( hWndRebar, GWLP_WNDPROC, ( LONG_PTR )PFD_FallbackBarProc );
+        PFD_LogRebarStage( "fallback bar container created", 0 );
     }
-    PFD_LogRebarStage( "rebar window created", 0 );
+    else
+        PFD_LogRebarStage( "rebar window created", 0 );
 
     const INT ITEM_POINT_SIZE = 10;
     HDC hDC = GetDC( hWndOwner );
@@ -746,8 +819,10 @@ HWND CreateRebar( HWND hWndOwner )
                                        hWndRebar, ( HMENU )IDC_TOPTOOLBAR, g_hInstance, NULL );
     if ( !hWndToolbar )
     {
-        PFD_LogRebarStage( "FAILED creating toolbar window", GetLastError() );
+        DWORD dwErr = GetLastError();
+        PFD_LogRebarStage( "FAILED creating toolbar window", dwErr );
         DestroyWindow( hWndRebar );
+        SetLastError( dwErr );
         return NULL;
     }
     PFD_LogRebarStage( "toolbar window created", 0 );
@@ -819,8 +894,10 @@ HWND CreateRebar( HWND hWndOwner )
                                     hWndRebar, ( HMENU )IDC_POSNCTRL, g_hInstance, NULL );
     if ( !hWndPosn )
     {
-        PFD_LogRebarStage( "FAILED creating position control", GetLastError() );
+        DWORD dwErr = GetLastError();
+        PFD_LogRebarStage( "FAILED creating position control", dwErr );
         DestroyWindow( hWndRebar );
+        SetLastError( dwErr );
         return NULL;
     }
     PFD_LogRebarStage( "position control created", 0 );
@@ -837,95 +914,84 @@ HWND CreateRebar( HWND hWndOwner )
     SendMessage( hWndSpeed, WM_SETFONT, ( WPARAM )hFont, FALSE );
     SendMessage( hWndNSpeed, WM_SETFONT, ( WPARAM )hFont, FALSE );
 
-    // Match the original PianoFromAbove insertion contract.  In particular,
-    // do not put RBBIM_SIZE in the initial RB_INSERTBAND call.  The original
-    // control successfully derives the band width from an already-sized child.
-    const bool bWin9x = ( GetVersion() & 0x80000000UL ) != 0;
-    BOOL bBandOK = FALSE;
-
-    if ( bWin9x )
+    if ( !g_bPFDRebarFallback )
     {
-        REBARBANDINFOA rbbi;
-        ZeroMemory( &rbbi, sizeof( rbbi ) );
-        rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
-        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
-        rbbi.lpText = ( LPSTR )"";
-        rbbi.hwndChild = hWndToolbar;
-        rbbi.cxMinChild = rbbi.cyIntegral = 0;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iToolbarHeight;
-        bBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK )
-        {
-            PFD_LogRebarStage( "FAILED inserting toolbar band (ANSI)", GetLastError() );
-            DestroyWindow( hWndRebar );
-            return NULL;
-        }
-        PFD_LogRebarStage( "toolbar band inserted (ANSI)", 0 );
+        const bool bWin9x = ( GetVersion() & 0x80000000UL ) != 0;
+        BOOL bToolbarBandOK = FALSE;
+        BOOL bPosnBandOK = FALSE;
 
-        ZeroMemory( &rbbi, sizeof( rbbi ) );
-        rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
-        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
-        rbbi.lpText = ( LPSTR )"";
-        rbbi.hwndChild = hWndPosn;
-        rbbi.cxMinChild = rbbi.cyIntegral = 0;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iPosnHeight;
-        bBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK )
+        if ( bWin9x )
         {
-            PFD_LogRebarStage( "FAILED inserting position band (ANSI)", GetLastError() );
-            DestroyWindow( hWndRebar );
-            return NULL;
+            REBARBANDINFOA rbbi;
+            ZeroMemory( &rbbi, sizeof( rbbi ) );
+            rbbi.cbSize = sizeof( rbbi );
+            rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE;
+            rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
+            rbbi.hwndChild = hWndToolbar;
+            rbbi.cxMinChild = iInitialBarWidth;
+            rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iToolbarHeight;
+            bToolbarBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
+
+            ZeroMemory( &rbbi, sizeof( rbbi ) );
+            rbbi.cbSize = sizeof( rbbi );
+            rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE;
+            rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
+            rbbi.hwndChild = hWndPosn;
+            rbbi.cxMinChild = iInitialBarWidth;
+            rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iPosnHeight;
+            if ( bToolbarBandOK )
+                bPosnBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
         }
-        PFD_LogRebarStage( "position band inserted (ANSI)", 0 );
+        else
+        {
+            REBARBANDINFOW rbbi;
+            ZeroMemory( &rbbi, sizeof( rbbi ) );
+            rbbi.cbSize = sizeof( rbbi );
+            rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE;
+            rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
+            rbbi.hwndChild = hWndToolbar;
+            rbbi.cxMinChild = iInitialBarWidth;
+            rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iToolbarHeight;
+            bToolbarBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
+
+            ZeroMemory( &rbbi, sizeof( rbbi ) );
+            rbbi.cbSize = sizeof( rbbi );
+            rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE;
+            rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
+            rbbi.hwndChild = hWndPosn;
+            rbbi.cxMinChild = iInitialBarWidth;
+            rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iPosnHeight;
+            if ( bToolbarBandOK )
+                bPosnBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
+        }
+
+        if ( !bToolbarBandOK || !bPosnBandOK )
+        {
+            DWORD dwErr = GetLastError();
+            PFD_LogRebarStage( !bToolbarBandOK ? "rebar toolbar band insertion failed; switching to manual layout" :
+                                                  "rebar position band insertion failed; switching to manual layout",
+                               dwErr );
+            while ( SendMessage( hWndRebar, RB_GETBANDCOUNT, 0, 0 ) > 0 )
+                SendMessage( hWndRebar, RB_DELETEBAND, 0, 0 );
+            g_bPFDRebarFallback = true;
+        }
+        else
+            PFD_LogRebarStage( "both rebar bands inserted", 0 );
     }
+
+    if ( g_bPFDRebarFallback )
+        PFD_LayoutFallbackBar( hWndRebar, hWndToolbar, hWndPosn,
+                               iInitialBarWidth, iToolbarHeight, iPosnHeight );
     else
     {
-        REBARBANDINFOW rbbi;
-        WCHAR wszEmpty[1] = { 0 };
-        ZeroMemory( &rbbi, sizeof( rbbi ) );
-        rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
-        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
-        rbbi.lpText = wszEmpty;
-        rbbi.hwndChild = hWndToolbar;
-        rbbi.cxMinChild = rbbi.cyIntegral = 0;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iToolbarHeight;
-        bBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK )
-        {
-            PFD_LogRebarStage( "FAILED inserting toolbar band (Unicode)", GetLastError() );
-            DestroyWindow( hWndRebar );
-            return NULL;
-        }
-        PFD_LogRebarStage( "toolbar band inserted (Unicode)", 0 );
-
-        ZeroMemory( &rbbi, sizeof( rbbi ) );
-        rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
-        rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
-        rbbi.lpText = wszEmpty;
-        rbbi.hwndChild = hWndPosn;
-        rbbi.cxMinChild = rbbi.cyIntegral = 0;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iPosnHeight;
-        bBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK )
-        {
-            PFD_LogRebarStage( "FAILED inserting position band (Unicode)", GetLastError() );
-            DestroyWindow( hWndRebar );
-            return NULL;
-        }
-        PFD_LogRebarStage( "position band inserted (Unicode)", 0 );
+        SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iInitialBarHeight,
+                      SWP_NOZORDER | SWP_NOACTIVATE );
+        SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
+        int iReportedBarHeight = ( int )SendMessage( hWndRebar, RB_GETBARHEIGHT, 0, 0 );
+        if ( iReportedBarHeight <= 0 ) iReportedBarHeight = iInitialBarHeight;
+        SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iReportedBarHeight,
+                      SWP_NOZORDER | SWP_NOACTIVATE );
     }
-
-    SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iInitialBarHeight,
-                  SWP_NOZORDER | SWP_NOACTIVATE );
-    SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
-    int iReportedBarHeight = ( int )SendMessage( hWndRebar, RB_GETBARHEIGHT, 0, 0 );
-    if ( iReportedBarHeight <= 0 ) iReportedBarHeight = iInitialBarHeight;
-    SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iReportedBarHeight,
-                  SWP_NOZORDER | SWP_NOACTIVATE );
 
     ShowWindow( hWndToolbar, SW_SHOWNA );
     ShowWindow( hWndPosn, SW_SHOWNA );
@@ -941,7 +1007,8 @@ HWND CreateRebar( HWND hWndOwner )
     SendMessage( hWndVolume, TBM_SETPOS, TRUE, ( LONG )( 100 * cPlayback.GetVolume() + .5 ) );
     SendMessage( hWndMetronome, CB_SETCURSEL, cPlayback.GetMetronome(), 0 );
 
-    PFD_LogRebarStage( "CreateRebar completed", 0 );
+    PFD_LogRebarStage( g_bPFDRebarFallback ? "CreateRebar completed using manual fallback layout" :
+                                               "CreateRebar completed using native rebar bands", 0 );
     return hWndRebar;
 }
 
@@ -1002,7 +1069,7 @@ LRESULT WINAPI PosnProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                     iLoopStart = iLoopEnd = -1;
                     
                     RECT rc;
-                    SendMessage( g_hWndBar, RB_GETRECT, 1, ( LPARAM )&rc );
+                    PFD_GetPositionBandRect( &rc );
                     RedrawWindow( g_hWndBar, &rc, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN );
                 }
                 else if ( iLoopStart < 0 || iPosition < iLoopStart )
@@ -1014,7 +1081,7 @@ LRESULT WINAPI PosnProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             {
                 iLoopStart = iLoopEnd = -1;
                 RECT rc;
-                SendMessage( g_hWndBar, RB_GETRECT, 1, ( LPARAM )&rc );
+                PFD_GetPositionBandRect( &rc );
                 RedrawWindow( g_hWndBar, &rc, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN );
             }
             return 0;
@@ -1033,7 +1100,7 @@ LRESULT WINAPI PosnProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             }
 
             RECT rc;
-            SendMessage( g_hWndBar, RB_GETRECT, 1, ( LPARAM )&rc );
+            PFD_GetPositionBandRect( &rc );
             RedrawWindow( g_hWndBar, &rc, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN );
             return 0;
         }
