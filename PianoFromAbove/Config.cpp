@@ -383,8 +383,9 @@ void SongLibrary::LoadMetaData()
     string sPath = Config::GetFolder();
     if ( sPath.length() == 0 ) return;
 
-    // Open the file
-    ifstream ifs( sPath + "\\MetaData.pb", ios::in | ios::binary | ios::ate );
+    // Open the file. C++98 libstdc++ fstreams accept a C string path, not std::string.
+    const string sMetaPath = sPath + "\\MetaData.pb";
+    ifstream ifs( sMetaPath.c_str(), ios::in | ios::binary | ios::ate );
     if ( !ifs.is_open() )
         return;
 
@@ -559,7 +560,8 @@ bool SongLibrary::SaveMetaData()
     string sData;
     m_Data.SerializeToString( &sData );
 
-    ofstream ofs( sPath + "\\MetaData.pb", ios::out | ios::binary );
+    const string sMetaPath = sPath + "\\MetaData.pb";
+    ofstream ofs( sMetaPath.c_str(), ios::out | ios::binary );
     if ( !ofs.is_open() ) return false;
 
     ofs << sData;

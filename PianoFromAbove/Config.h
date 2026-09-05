@@ -201,7 +201,7 @@ public:
     int AddSource( const wstring &sSource, Source eSource, bool bExpand = true );
     int RemoveSource( const wstring &sSource );
     int ExpandSources();
-    PFAData::File* SongLibrary::AddFile( const wstring &wsFilename, MIDI *pMidi = NULL );
+    PFAData::File* AddFile( const wstring &wsFilename, MIDI *pMidi = NULL );
     void clear();
 
     const map < wstring, Source > &GetSources() const { return m_mSources; }

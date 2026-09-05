@@ -752,7 +752,7 @@ INT_PTR WINAPI LibraryProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                 if ( it->second != SongLibrary::File )
                 {
                     lvi.iSubItem = 1;
-                    lvi.pszText = it->second == SongLibrary::Folder ? TEXT ( "No" ) : TEXT ( "Yes" );
+                    lvi.pszText = ( LPTSTR )( it->second == SongLibrary::Folder ? TEXT ( "No" ) : TEXT ( "Yes" ) );
                     SendMessage( hWndLibrary, LVM_SETITEM, 0, ( LPARAM )&lvi );
                 }
             }

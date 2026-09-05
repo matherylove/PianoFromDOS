@@ -9,6 +9,7 @@
 *
 *************************************************************************************************/
 #include <tchar.h>
+#include <algorithm>
 
 #include "Globals.h"
 #include "GameState.h"
@@ -468,7 +469,7 @@ void SplashScreen::RenderNote( int iPos )
 
     // Visualize!
     long long llDuration = m_llStartTime - ( m_MIDI.GetInfo().llFirstNote - 3000000 );
-    int iAlpha = 0xFF - static_cast< int >( ( 0xFF * min( 1500000, llDuration ) ) / 1500000 );
+    int iAlpha = 0xFF - static_cast< int >( ( 0xFF * min( 1500000LL, llDuration ) ) / 1500000LL );
     int iAlpha1 = static_cast< int >( ( 0xFF * ( m_fNotesCY - y ) / m_fNotesCY ) + 0.5f );
     int iAlpha2 = static_cast< int >( ( 0xFF * ( m_fNotesCY - ( y + cy ) ) / m_fNotesCY ) + 0.5f );
     iAlpha1 = max( iAlpha1, 0 );
@@ -2593,7 +2594,8 @@ void MainScreen::RenderStatus( LPRECT prcStatus )
     }
 
     // Build the learning text
-    TCHAR sLearn[128] = TEXT( "All Tracks" ), *sMode = ( m_eLearnMode == GameState::Adaptive ? TEXT( "Adaptive" ) : TEXT( "Waiting" ) );
+    TCHAR sLearn[128] = TEXT( "All Tracks" );
+    const TCHAR *sMode = ( m_eLearnMode == GameState::Adaptive ? TEXT( "Adaptive" ) : TEXT( "Waiting" ) );
     if ( m_iLearnOrdinal >= 0 ) _stprintf_s( sLearn, TEXT( "Track %d" ), m_iLearnOrdinal + 1 );
 
     // Display the text

@@ -517,7 +517,7 @@ MIDITrack::~MIDITrack( void )
 
 void MIDITrack::clear( void )
 {
-    for ( auto it = m_vEvents.begin(); it != m_vEvents.end(); ++it )
+    for ( vector< MIDIEvent* >::iterator it = m_vEvents.begin(); it != m_vEvents.end(); ++it )
         delete *it;
     m_vEvents.clear();
     m_TrackInfo.clear();
