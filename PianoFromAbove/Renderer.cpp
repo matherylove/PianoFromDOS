@@ -9,6 +9,9 @@
 *************************************************************************************************/
 #include "Renderer.h"
 
+#include <string>
+#include <vector>
+
 extern void PFD_StartupLogA( const char *text );
 
 namespace
@@ -22,6 +25,154 @@ namespace
     static PFD_Direct3DCreate9Fn g_pDirect3DCreate9 = NULL;
     static PFD_D3DXCreateSpriteFn g_pD3DXCreateSprite = NULL;
     static PFD_D3DXCreateFontAFn g_pD3DXCreateFontA = NULL;
+
+    static HWND g_hPFDRenderWindow = NULL;
+
+    struct PFD_GDITextCommand
+    {
+        std::string text;
+        Renderer::FontSize font;
+        RECT rect;
+        DWORD format;
+        DWORD color;
+    };
+
+    static std::vector< PFD_GDITextCommand > g_vPFDGDIText;
+    static HFONT g_hPFDGDIFonts[5] = { NULL, NULL, NULL, NULL, NULL };
+
+    static bool PFD_IsWin9xRenderer()
+    {
+        return ( GetVersion() & 0x80000000UL ) != 0;
+    }
+
+    static HFONT PFD_GetGDIFont( Renderer::FontSize fsFont )
+    {
+        int i = static_cast< int >( fsFont );
+        if ( i < 0 || i >= 5 ) i = static_cast< int >( Renderer::Medium );
+        if ( g_hPFDGDIFonts[i] ) return g_hPFDGDIFonts[i];
+
+        int height = 15;
+        int weight = FW_NORMAL;
+        const char *face = "Tahoma";
+        if ( fsFont == Renderer::SmallBold )
+            weight = FW_BOLD;
+        else if ( fsFont == Renderer::SmallComic )
+        {
+            height = 20;
+            weight = FW_BOLD;
+            face = "Comic Sans MS";
+        }
+        else if ( fsFont == Renderer::Medium )
+            height = 25;
+        else if ( fsFont == Renderer::Large )
+            height = 35;
+
+        g_hPFDGDIFonts[i] = CreateFontA( height, 0, 0, 0, weight, FALSE, FALSE, FALSE,
+                                         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                         PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE, face );
+        if ( !g_hPFDGDIFonts[i] )
+            g_hPFDGDIFonts[i] = ( HFONT )GetStockObject( DEFAULT_GUI_FONT );
+        return g_hPFDGDIFonts[i];
+    }
+
+    static bool PFD_WideToAnsiText( const WCHAR *sText, INT iChars, std::string &out )
+    {
+        out.clear();
+        if ( !sText ) return false;
+
+        int sourceChars = iChars;
+        if ( sourceChars < 0 )
+        {
+            sourceChars = 0;
+            while ( sText[sourceChars] ) ++sourceChars;
+        }
+        if ( sourceChars <= 0 ) return true;
+
+        int bytes = WideCharToMultiByte( CP_ACP, 0, sText, sourceChars, NULL, 0, NULL, NULL );
+        if ( bytes > 0 )
+        {
+            std::vector< char > tmp( bytes );
+            int converted = WideCharToMultiByte( CP_ACP, 0, sText, sourceChars, &tmp[0], bytes, NULL, NULL );
+            if ( converted > 0 )
+            {
+                out.assign( &tmp[0], converted );
+                return true;
+            }
+        }
+
+        // Last-resort Win9x conversion.  MIDI/UI strings are overwhelmingly
+        // ASCII, so keep the renderer alive even if the system conversion API
+        // rejects a character.
+        out.reserve( sourceChars );
+        for ( int i = 0; i < sourceChars; ++i )
+        {
+            WCHAR wc = sText[i];
+            out.push_back( wc <= 0xFF ? static_cast< char >( wc ) : '?' );
+        }
+        return true;
+    }
+
+    static HRESULT PFD_QueueGDITextA( const CHAR *sText, Renderer::FontSize fsFont,
+                                       LPRECT rcPos, DWORD dwFormat, DWORD dwColor, INT iChars )
+    {
+        if ( !sText || !rcPos ) return E_INVALIDARG;
+
+        int chars = iChars;
+        if ( chars < 0 ) chars = lstrlenA( sText );
+        if ( chars < 0 ) chars = 0;
+
+        HFONT hFont = PFD_GetGDIFont( fsFont );
+        if ( dwFormat & DT_CALCRECT )
+        {
+            HDC hDC = g_hPFDRenderWindow ? GetDC( g_hPFDRenderWindow ) : GetDC( NULL );
+            if ( !hDC ) return E_FAIL;
+            int saved = SaveDC( hDC );
+            SelectObject( hDC, hFont );
+            RECT rc = *rcPos;
+            ::DrawTextA( hDC, sText, chars, &rc, dwFormat );
+            *rcPos = rc;
+            if ( saved ) RestoreDC( hDC, saved );
+            if ( g_hPFDRenderWindow ) ReleaseDC( g_hPFDRenderWindow, hDC );
+            else ReleaseDC( NULL, hDC );
+            return S_OK;
+        }
+
+        // Fully transparent D3DX text should remain invisible.
+        if ( ( dwColor & 0xFF000000UL ) == 0 ) return S_OK;
+
+        PFD_GDITextCommand cmd;
+        cmd.text.assign( sText, chars );
+        cmd.font = fsFont;
+        cmd.rect = *rcPos;
+        cmd.format = dwFormat;
+        cmd.color = dwColor;
+        g_vPFDGDIText.push_back( cmd );
+        return S_OK;
+    }
+
+    static void PFD_DrawQueuedGDIText()
+    {
+        if ( !g_hPFDRenderWindow || g_vPFDGDIText.empty() ) return;
+
+        HDC hDC = GetDC( g_hPFDRenderWindow );
+        if ( !hDC ) return;
+        int saved = SaveDC( hDC );
+        SetBkMode( hDC, TRANSPARENT );
+
+        for ( size_t i = 0; i < g_vPFDGDIText.size(); ++i )
+        {
+            const PFD_GDITextCommand &cmd = g_vPFDGDIText[i];
+            SelectObject( hDC, PFD_GetGDIFont( cmd.font ) );
+            SetTextColor( hDC, RGB( ( cmd.color >> 16 ) & 0xFF,
+                                    ( cmd.color >> 8 ) & 0xFF,
+                                    cmd.color & 0xFF ) );
+            RECT rc = cmd.rect;
+            ::DrawTextA( hDC, cmd.text.c_str(), static_cast< int >( cmd.text.size() ), &rc, cmd.format );
+        }
+
+        if ( saved ) RestoreDC( hDC, saved );
+        ReleaseDC( g_hPFDRenderWindow, hDC );
+    }
 
     static HRESULT PFD_LoadDirectXRuntimes( HWND hWnd )
     {
@@ -43,6 +194,12 @@ namespace
                 return HRESULT_FROM_WIN32( ERROR_PROC_NOT_FOUND );
             }
         }
+
+        // Win95/98/ME use the GDI text path below.  Avoid D3DXFont entirely:
+        // ID3DXFont::DrawTextA/W is the call that faults on the tested WinME
+        // system (0x80000003/EIP=1).  D3D9 itself remains the renderer.
+        if ( PFD_IsWin9xRenderer() )
+            return S_OK;
 
         if ( !g_hD3DX9 )
         {
@@ -97,12 +254,12 @@ D3D9Renderer::~D3D9Renderer()
 
 void D3D9Renderer::DestroyDeviceObjects()
 {
-    m_pTextSprite->OnLostDevice();
-    m_pSmallFont->OnLostDevice();
-    m_pSmallBoldFont->OnLostDevice();
-    m_pSmallComicFont->OnLostDevice();
-    m_pMediumFont->OnLostDevice();
-    m_pLargeFont->OnLostDevice();
+    if ( m_pTextSprite ) m_pTextSprite->OnLostDevice();
+    if ( m_pSmallFont ) m_pSmallFont->OnLostDevice();
+    if ( m_pSmallBoldFont ) m_pSmallBoldFont->OnLostDevice();
+    if ( m_pSmallComicFont ) m_pSmallComicFont->OnLostDevice();
+    if ( m_pMediumFont ) m_pMediumFont->OnLostDevice();
+    if ( m_pLargeFont ) m_pLargeFont->OnLostDevice();
 
     if( m_pVertexBuffer ) m_pVertexBuffer->Release();
     if( m_pStaticVertexBuffer ) ReleaseStaticBuffer();
@@ -136,33 +293,42 @@ HRESULT D3D9Renderer::Init( HWND hWnd, bool bLimitFPS )
                                            &m_d3dPP, &m_pd3dDevice ) ) )
         return hr;
 
-    if( FAILED( hr = g_pD3DXCreateSprite( m_pd3dDevice, &m_pTextSprite ) ) )
-        return hr;
+    g_hPFDRenderWindow = hWnd;
 
-    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 15, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
-                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                      "Tahoma", &m_pSmallFont ) ) )
-        return hr;
+    if ( !PFD_IsWin9xRenderer() )
+    {
+        if( FAILED( hr = g_pD3DXCreateSprite( m_pd3dDevice, &m_pTextSprite ) ) )
+            return hr;
 
-    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
-                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                      "Tahoma", &m_pSmallBoldFont ) ) )
-        return hr;
+        if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 15, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+                                          OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                          "Tahoma", &m_pSmallFont ) ) )
+            return hr;
 
-    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 20, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
-                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                      "Comic Sans MS", &m_pSmallComicFont ) ) )
-        return hr;
+        if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+                                          OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                          "Tahoma", &m_pSmallBoldFont ) ) )
+            return hr;
 
-    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 25, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
-                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                      "Tahoma", &m_pMediumFont ) ) )
-        return hr;
+        if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 20, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+                                          OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                          "Comic Sans MS", &m_pSmallComicFont ) ) )
+            return hr;
 
-    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 35, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
-                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                      "Tahoma", &m_pLargeFont ) ) )
-        return hr;
+        if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 25, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+                                          OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                          "Tahoma", &m_pMediumFont ) ) )
+            return hr;
+
+        if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 35, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+                                          OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                          "Tahoma", &m_pLargeFont ) ) )
+            return hr;
+    }
+    else
+    {
+        PFD_StartupLogA( "Renderer: Win9x GDI text overlay enabled; D3DXFont is bypassed.\r\n" );
+    }
 
     if ( FAILED( hr = RestoreDeviceObjects() ) )
         return hr;
@@ -185,12 +351,12 @@ HRESULT D3D9Renderer::RestoreDeviceObjects()
         return hr;
     m_iTriangle = 0;
 
-    m_pTextSprite->OnResetDevice();
-    m_pSmallFont->OnResetDevice();
-    m_pSmallBoldFont->OnResetDevice();
-    m_pSmallComicFont->OnResetDevice();
-    m_pMediumFont->OnResetDevice();
-    m_pLargeFont->OnResetDevice();
+    if ( m_pTextSprite ) m_pTextSprite->OnResetDevice();
+    if ( m_pSmallFont ) m_pSmallFont->OnResetDevice();
+    if ( m_pSmallBoldFont ) m_pSmallBoldFont->OnResetDevice();
+    if ( m_pSmallComicFont ) m_pSmallComicFont->OnResetDevice();
+    if ( m_pMediumFont ) m_pMediumFont->OnResetDevice();
+    if ( m_pLargeFont ) m_pLargeFont->OnResetDevice();
 
     m_pd3dDevice->SetRenderState( D3DRS_ALPHABLENDENABLE, TRUE );
     m_pd3dDevice->SetRenderState( D3DRS_SRCBLEND, D3DBLEND_INVSRCALPHA );
@@ -246,6 +412,7 @@ HRESULT D3D9Renderer::Clear( DWORD color )
 
 HRESULT D3D9Renderer::BeginScene()
 {
+    if ( PFD_IsWin9xRenderer() ) g_vPFDGDIText.clear();
     return m_pd3dDevice->BeginScene();
 }
 
@@ -258,73 +425,50 @@ HRESULT D3D9Renderer::EndScene()
 HRESULT D3D9Renderer::BeginText()
 {
     FlushBuffer();
+    if ( PFD_IsWin9xRenderer() ) return S_OK;
     return m_pTextSprite->Begin( D3DXSPRITE_ALPHABLEND | D3DXSPRITE_SORT_TEXTURE );
 }
 
 HRESULT D3D9Renderer::DrawTextW( const WCHAR *sText, FontSize fsFont, LPRECT rcPos, DWORD dwFormat, DWORD dwColor, INT iChars )
 {
+    if ( PFD_IsWin9xRenderer() )
+    {
+        std::string ansi;
+        if ( !PFD_WideToAnsiText( sText, iChars, ansi ) ) return E_FAIL;
+        return PFD_QueueGDITextA( ansi.c_str(), fsFont, rcPos, dwFormat, dwColor,
+                                  static_cast< INT >( ansi.size() ) );
+    }
+
     LPD3DXFONT pFont = ( fsFont == Small ? m_pSmallFont :
                          fsFont == SmallBold ? m_pSmallBoldFont :
                          fsFont == SmallComic ? m_pSmallComicFont :
                          fsFont == Medium ? m_pMediumFont :
                          fsFont == Large ? m_pLargeFont : m_pMediumFont );
 
-    // D3DX9's Unicode text path is not reliable on Windows 95/98/ME.
-    // PianoFromDOS itself gets Unicode API coverage from MSLU, but D3DX9.dll
-    // is a separate module and does not run through our unicows import layer.
-    // Render text through ID3DXFont::DrawTextA on Win9x instead.
-    if ( ( GetVersion() & 0x80000000UL ) != 0 )
-    {
-        static bool s_bLoggedAnsiTextFallback = false;
-        if ( !s_bLoggedAnsiTextFallback )
-        {
-            PFD_StartupLogA( "Renderer: Win9x ANSI text fallback active (DrawTextW -> DrawTextA).\r\n" );
-            s_bLoggedAnsiTextFallback = true;
-        }
-
-        if ( !sText ) return E_INVALIDARG;
-        int iSourceChars = ( iChars < 0 ? -1 : iChars );
-        int iBytes = WideCharToMultiByte( CP_ACP, 0, sText, iSourceChars, NULL, 0, NULL, NULL );
-        if ( iBytes <= 0 ) return E_FAIL;
-
-        int iCapacity = iBytes + ( iSourceChars < 0 ? 0 : 1 );
-        char *pAnsi = new char[iCapacity];
-        int iConverted = WideCharToMultiByte( CP_ACP, 0, sText, iSourceChars, pAnsi, iBytes, NULL, NULL );
-        if ( iConverted <= 0 )
-        {
-            delete[] pAnsi;
-            return E_FAIL;
-        }
-        if ( iSourceChars >= 0 ) pAnsi[iConverted] = '\0';
-
-        INT iAnsiChars = ( iSourceChars < 0 ? -1 : iConverted );
-        INT iResult = pFont->DrawTextA( m_pTextSprite, pAnsi, iAnsiChars, rcPos, dwFormat, D3DXCOLOR( dwColor ) );
-        delete[] pAnsi;
-        return iResult ? S_OK : E_FAIL;
-    }
-    
-    if ( !pFont->DrawTextW( m_pTextSprite, sText, iChars, rcPos, dwFormat, D3DXCOLOR( dwColor ) ) )
+    if ( !pFont || !pFont->DrawTextW( m_pTextSprite, sText, iChars, rcPos, dwFormat, D3DXCOLOR( dwColor ) ) )
         return E_FAIL;
-    
     return S_OK;
 }
 
 HRESULT D3D9Renderer::DrawTextA( const CHAR *sText, FontSize fsFont, LPRECT rcPos, DWORD dwFormat, DWORD dwColor, INT iChars )
 {
+    if ( PFD_IsWin9xRenderer() )
+        return PFD_QueueGDITextA( sText, fsFont, rcPos, dwFormat, dwColor, iChars );
+
     LPD3DXFONT pFont = ( fsFont == Small ? m_pSmallFont :
                          fsFont == SmallBold ? m_pSmallBoldFont :
                          fsFont == SmallComic ? m_pSmallComicFont :
                          fsFont == Medium ? m_pMediumFont :
                          fsFont == Large ? m_pLargeFont : m_pMediumFont );
-    
-    if ( !pFont->DrawTextA( m_pTextSprite, sText, -1, rcPos, dwFormat, D3DXCOLOR( dwColor ) ) )
+
+    if ( !pFont || !pFont->DrawTextA( m_pTextSprite, sText, iChars, rcPos, dwFormat, D3DXCOLOR( dwColor ) ) )
         return E_FAIL;
-    
     return S_OK;
 }
 
 HRESULT D3D9Renderer::EndText()
 {
+    if ( PFD_IsWin9xRenderer() ) return S_OK;
     return m_pTextSprite->End();
 }
 
@@ -333,6 +477,8 @@ HRESULT D3D9Renderer::Present()
     HRESULT hr = m_pd3dDevice->Present(NULL, NULL, NULL, NULL);
     if ( hr == D3DERR_DEVICELOST )
         DestroyDeviceObjects();
+    else if ( SUCCEEDED( hr ) && PFD_IsWin9xRenderer() )
+        PFD_DrawQueuedGDIText();
     return hr;
 }
 
