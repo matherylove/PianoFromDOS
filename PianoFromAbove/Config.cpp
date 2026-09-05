@@ -7,9 +7,9 @@
 * Copyright (c) 2010 Brian Pantano. All rights reserved.
 *
 *************************************************************************************************/
-#include <Windows.h>
-#include <Shlobj.h>
-#include <TChar.h>
+#include <windows.h>
+#include <shlobj.h>
+#include <tchar.h>
 
 #include <fstream>
 using namespace std;
@@ -36,7 +36,7 @@ Config::Config()
 string Config::GetFolder()
 {
     char sAppData[MAX_PATH];
-    if ( FAILED( SHGetFolderPathA( NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, sAppData ) ) )
+    if ( !PFD_GetSpecialFolderPathA( CSIDL_APPDATA, sAppData, sizeof( sAppData ) ) )
         return string();
 
     strcat_s( sAppData, "\\" );
@@ -167,13 +167,17 @@ void ControlsSettings::LoadDefaultValues()
 void SongLibrary::LoadDefaultValues()
 {
     TCHAR sPath[MAX_PATH];
-    if ( SUCCEEDED( SHGetFolderPath( NULL, CSIDL_MYDOCUMENTS, NULL, SHGFP_TYPE_CURRENT, sPath ) ) )
+    bool haveDocuments = PFD_GetSpecialFolderPathW( CSIDL_MYDOCUMENTS, sPath, MAX_PATH );
+    if ( haveDocuments )
         AddSource( sPath, Folder, false );
-    if ( SUCCEEDED( SHGetFolderPath( NULL, CSIDL_MYMUSIC, NULL, SHGFP_TYPE_CURRENT, sPath ) ) )
+    if ( PFD_GetSpecialFolderPathW( CSIDL_MYMUSIC, sPath, MAX_PATH ) )
         AddSource( sPath, Folder, false );
-    _tcscat_s( sPath, TEXT( "\\Piano From Above" ) );
-    AddSource( sPath, FolderWSubdirs, false );
-    if ( SUCCEEDED( SHGetFolderPath( NULL, CSIDL_DESKTOP, NULL, SHGFP_TYPE_CURRENT, sPath ) ) )
+    if ( haveDocuments && PFD_GetSpecialFolderPathW( CSIDL_MYDOCUMENTS, sPath, MAX_PATH ) )
+    {
+        _tcscat_s( sPath, TEXT( "\\PianoFromDOS" ) );
+        AddSource( sPath, FolderWSubdirs, false );
+    }
+    if ( PFD_GetSpecialFolderPathW( CSIDL_DESKTOP, sPath, MAX_PATH ) )
         AddSource( sPath, Folder, false );
     m_bAlwaysAdd = false;
     m_iSortCol = 1; // File
@@ -660,7 +664,8 @@ int SongLibrary::ExpandSource( const wstring &sSource, Source eSource )
     TCHAR buf[1024];
     vector< PFAData::File* > *pvFiles = new vector< PFAData::File* >();
 
-    int iExpanded = ExpandSource( TEXT( "\\\\?\\" ) + sSource, eSource, pvFiles, buf );
+    // Win9x has no NT extended-path (\\?\) namespace; stay within MAX_PATH.
+    int iExpanded = ExpandSource( sSource, eSource, pvFiles, buf );
     if ( iExpanded > 0 ) m_mFiles[sSource] = pvFiles;
     else delete pvFiles;
 
@@ -725,15 +730,14 @@ int SongLibrary::ExpandSource( const wstring &sPath, Source eSource, vector< PFA
 PFAData::File* SongLibrary::AddFile( const wstring &wsFilename, MIDI *pMidi )
 {
     // Does it exist? Prob should remove from map if it's there.
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    GetFileAttributesEx( wsFilename.c_str(), GetFileExInfoStandard, &fad );
-    if ( fad.dwFileAttributes == INVALID_FILE_ATTRIBUTES ) return NULL;
+    DWORD fileSizeLow = 0;
+    if ( !PFD_GetFileSizeW( wsFilename.c_str(), &fileSizeLow ) ) return NULL;
 
-    // Protocol buffers don't take wstrings...
-    string sFilename = Util::WstringToString( wsFilename.substr( 4 ) );
+    // Metadata stays UTF-8 on disk, even though Win98 filesystem access uses ACP.
+    string sFilename = Util::WstringToString( wsFilename );
 
     // Is it already there?
-    pair< string, int > fileLookup( sFilename, fad.nFileSizeLow );
+    pair< string, int > fileLookup( sFilename, (int)fileSizeLow );
     map< pair< string, int >, PFAData::File* >::const_iterator itFile =
         m_mMD5s.find( fileLookup );
     if ( itFile != m_mMD5s.end() ) return itFile->second;
@@ -754,7 +758,7 @@ PFAData::File* SongLibrary::AddFile( const wstring &wsFilename, MIDI *pMidi )
     // Create file info
     PFAData::File *file = m_Data.add_file();
     file->set_filename( sFilename );
-    file->set_filesize( fad.nFileSizeLow );
+    file->set_filesize( (int)fileSizeLow );
     m_mMD5s[ fileLookup ] = file;
 
     // Do we already have data for this file

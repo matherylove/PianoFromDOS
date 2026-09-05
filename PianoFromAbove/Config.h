@@ -13,18 +13,18 @@
 #include <map>
 #include <string>
 
-#include "ProtoBuf\MetaData.pb.h"
-#include "tinyxml\tinyxml.h"
+#include "MetaData.h"
+#include "TinyXML/tinyxml.h"
 
 #include "MIDI.h"
 #include "GameState.h"
 #include "MainProcs.h"
 
-#define APPNAME "Piano From Above"
-#define APPNAMENOSPACES "PianoFromAbove"
-#define CLASSNAME  TEXT( "PianoFromAbove" )
-#define GFXCLASSNAME  TEXT( "PianoFromAboveGfx" )
-#define POSNCLASSNAME  TEXT( "PianoFromAbovePosCtrl" )
+#define APPNAME "PianoFromDOS"
+#define APPNAMENOSPACES "PianoFromDOS"
+#define CLASSNAME  TEXT( "PianoFromDOS" )
+#define GFXCLASSNAME  TEXT( "PianoFromDOSGfx" )
+#define POSNCLASSNAME  TEXT( "PianoFromDOSPosCtrl" )
 #define MINWIDTH 640
 #define MINHEIGHT 469
 

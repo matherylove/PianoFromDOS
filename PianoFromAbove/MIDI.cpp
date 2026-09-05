@@ -139,7 +139,8 @@ int MIDIPos::GetNextEvents( int iMicroSecs, vector< MIDIEvent* > &vEvents )
 MIDI::MIDI ( const wstring &sFilename )
 {
     // Open the file
-    ifstream ifs( sFilename, ios::in | ios::binary | ios::ate );
+    string sAnsiFilename = PFD_WidePathToAnsi( sFilename.c_str() );
+    ifstream ifs( sAnsiFilename.c_str(), ios::in | ios::binary | ios::ate );
     if ( !ifs.is_open() )
         return;
 

@@ -9,7 +9,7 @@
 *************************************************************************************************/
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 
 #include "GameState.h"
 #include "Config.h"

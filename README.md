@@ -1,56 +1,104 @@
-# PianoFromAbove
+# PianoFromDOS
 
-This is the software that drives some of the Impossible MIDI videos on youtube:
+**PianoFromDOS** is an experimental Windows 98 compatibility port of Brian Pantano's
+[Piano From Above](https://github.com/brian-pantano/PianoFromAbove).
 
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=p_c6uQHlhZ0" target="_blank">
-    <img src="https://img.youtube.com/vi/p_c6uQHlhZ0/hqdefault.jpg"/>
-  </a>
-</p>
+The port keeps the original Win32/Direct3D 9 architecture, but replaces or isolates
+parts of the 2010 build that prevent a clean Windows 98 target and a reproducible
+GitHub Actions build.
 
-Synthesia is the main alternate with way more market share and much more active development, but appaerently PFA is more performant, so some prefer it. Yay.
+## Current target
 
-The original inspiration:
+- Windows 98 / Windows 98 SE
+- 32-bit x86 (i686)
+- Direct3D 9
+- D3DX9_30
+- WinMM MIDI
+- Unicode UI through Microsoft's MSLU (`unicows.dll`)
+- No Boost dependency in the PianoFromDOS target
+- No `libprotobuf` dependency in the PianoFromDOS target
+- GitHub Actions cross-compilation on Ubuntu
 
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=mTS16klgqMU" target="_blank">
-    <img src="https://img.youtube.com/vi/mTS16klgqMU/hqdefault.jpg"/>
-  </a>
-</p>
+## GitHub Actions build
 
-And so I made it happen:
+The workflow is:
 
+```text
+.github/workflows/build-win98.yml
+```
 
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=PWQj61p6D5s" target="_blank">
-    <img src="https://img.youtube.com/vi/PWQj61p6D5s/hqdefault.jpg"/>
-  </a>
-</p>
+Every push, pull request, or manual workflow run builds a Windows 98 x86 artifact
+named:
 
-## Binaries
+```text
+PianoFromDOS-Windows98-x86
+```
 
-https://github.com/brian-pantano/PianoFromAbove/releases
+The artifact contains `PianoFromDOS.exe`, runtime notes, PE information, and the
+original Piano From Above license.
 
-## Viz branch
+The CI downloads a pinned `redpanda-cpp/mingw-lite` cross-toolchain profile built
+for Windows 98 (`32_686-msvcrt_win98`), verifies its SHA-256, builds the
+`libunicows` import library from a pinned source commit, configures CMake, builds,
+checks the resulting PE32 executable, and uploads the artifact.
 
-There's now a viz branch which will house graphics and performance updates going forward (if there is a forward).
+No Visual Studio installation is required by CI.
 
-## How to build
+## Runtime requirements on Windows 98
 
-This is unfortunately very tricky. Hopefully I will simplify this in the future.
+GitHub Actions builds the application itself, but Microsoft runtime components are
+not redistributed by this repository. Place/install legally obtained copies of:
 
-* clone this repo
-* Download and install VisualStudio 2010
-* Download and install Direct X SDK
-* Download and extract Google Protocol Buffers 2.5
-  * Build libprotobuf-lite.vcproj
-* Download and extract Boost 1.55
-* Open the .sln and edit the VC++ Directories from the project properties so that the Include Directories and Library Directories point to the location of your boost and protocol buffers downloads
-* Cross fingers
-* Build! (Release, x64)
+- `UNICOWS.DLL` (Microsoft Layer for Unicode), next to `PianoFromDOS.exe`.
+- `D3DX9_30.DLL`, from a compatible DirectX 9.0c-era redistributable.
+- Common Controls 5.80 or later is recommended for the Unicode controls used by
+  the original interface.
 
-Once that's done, there should be a Release\PFA-1.1.0-x86_64.exe that you can run.
+See `WIN98_RUNTIME.txt` for the compact runtime checklist.
 
-There's an optional .nsi script that you can run if you want to build an installer.
+## What changed for PianoFromDOS
 
-The code probably isn't the best, and it probably goes against all sorts of best practices but it is fairly snappy. I'm not very good at writing UI or UX, but I am fairly good at writing datastructures and writing minimal and fast code. Good luck reading it! 
+The Windows 98 target currently includes these portability changes:
+
+- application branding changed to PianoFromDOS;
+- x64 is not a supported target;
+- XP-specific target macros were replaced by Windows 98 target macros;
+- `boost::circular_buffer` was replaced by a small fixed-capacity C++ container;
+- generated Protocol Buffers/libprotobuf runtime usage was replaced with a small
+  schema-specific wire-format implementation that preserves `MetaData.pb`;
+- NT extended paths (`\\?\`) are not used on Win98;
+- filesystem access converts Unicode paths to the active Win98 ANSI code page at
+  the OS boundary;
+- `SendInput` was replaced by the Win9x-compatible `mouse_event` call;
+- `SetDCBrushColor`/`DC_BRUSH` drawing was replaced by normal solid brushes;
+- unsupported list-view double buffering is disabled;
+- UxTheme headers/libraries are no longer part of the CI target;
+- D3DX is explicitly linked against `d3dx9_30`;
+- the Visual C++ resource script is converted to UTF-8 and made portable to
+  MinGW `windres` on a case-sensitive Linux runner.
+
+The old Visual Studio project files are retained as historical/reference files;
+GitHub Actions uses `CMakeLists.txt` instead.
+
+## Local cross-build
+
+The GitHub Actions workflow is the canonical build recipe. If you already have the
+same Win98 MinGW cross-toolchain and a built `libunicows.a`, the equivalent CMake
+configuration is:
+
+```sh
+cmake -S . -B build-win98 -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=/path/to/win98-toolchain.cmake \
+  -DPFD_UNICOWS_LIBRARY=/path/to/libunicows.a \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build-win98
+```
+
+## License / upstream status
+
+This repository is based on Piano From Above source code. The original
+`Docs/License.txt` is preserved unchanged. That license contains restrictions on
+modification and derivative works. Before publicly redistributing PianoFromDOS,
+review the original license and obtain any permission that may be required from
+the original author. This port is not presented as an official Piano From Above
+release.

@@ -7,11 +7,9 @@
 * Copyright (c) 2010 Brian Pantano. All rights reserved.
 *
 *************************************************************************************************/
-#include <TChar.h>
+#include <tchar.h>
 #include <shlobj.h>
-#include <Uxtheme.h>
-#include <Vsstyle.h>
-#include <Dbt.h>
+#include <dbt.h>
 
 #include "ConfigProcs.h"
 #include "MainProcs.h"
@@ -96,8 +94,7 @@ INT_PTR WINAPI VisualProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             if ( ( pdis->CtlID < IDC_COLOR1 || pdis->CtlID > IDC_COLOR6 ) && pdis->CtlID != IDC_BKGCOLOR )
                 return FALSE;
 
-            SetDCBrushColor( pdis->hDC, (COLORREF)GetWindowLongPtr( pdis->hwndItem, GWLP_USERDATA ) );
-            FillRect( pdis->hDC, &pdis->rcItem, ( HBRUSH )GetStockObject( DC_BRUSH ) );
+            PFD_FillSolidRect( pdis->hDC, &pdis->rcItem, (COLORREF)GetWindowLongPtr( pdis->hwndItem, GWLP_USERDATA ) );
             return TRUE;
         }
         case WM_COMMAND:
@@ -556,11 +553,8 @@ INT_PTR WINAPI ControlsProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             LPDRAWITEMSTRUCT pdis = (LPDRAWITEMSTRUCT)lParam;
 
             InflateRect( &pdis->rcItem, -1, -1 );
-            if ( pdis->hwndItem == hWndHotItem || pdis->itemState & ODS_SELECTED )
-                SetDCBrushColor( pdis->hDC, 0x00EAD999 );
-            else
-                SetDCBrushColor( pdis->hDC, 0x00FFFFFF );
-            FillRect( pdis->hDC, &pdis->rcItem, ( HBRUSH )GetStockObject( DC_BRUSH ) );
+            COLORREF keyColor = ( pdis->hwndItem == hWndHotItem || pdis->itemState & ODS_SELECTED ) ? 0x00EAD999 : 0x00FFFFFF;
+            PFD_FillSolidRect( pdis->hDC, &pdis->rcItem, keyColor );
             DrawEdge( pdis->hDC, &pdis->rcItem, EDGE_ETCHED, BF_RECT | BF_FLAT );
 
             int iNote = (int)GetWindowLongPtr( pdis->hwndItem, GWLP_USERDATA );
@@ -729,7 +723,7 @@ INT_PTR WINAPI LibraryProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             // Set up the list view
             RECT rc;
             HWND hWndLibrary = GetDlgItem( hWnd, IDC_LIBRARY );
-            SendMessage( hWndLibrary, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER );
+            SendMessage( hWndLibrary, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, 0 );
             GetClientRect( hWndLibrary, &rc );
 
             // Set up the columns of the list view
@@ -980,7 +974,7 @@ INT_PTR WINAPI TracksProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
         {
             HWND hWndTracks = GetDlgItem( hWnd, IDC_TRACKS );
             TCHAR buf[MAX_PATH];
-            SendMessage( hWndTracks, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER );
+            SendMessage( hWndTracks, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, 0 );
 
             // Get data
             MainScreen *pGameState = ( MainScreen* )lParam;
@@ -1197,11 +1191,9 @@ INT_PTR WINAPI TracksProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                                             DFCS_BUTTONCHECK | ( vHidden[ lpnmcd->dwItemSpec ] ? DFCS_CHECKED : 0 ) );
                                     else
                                     {
-                                        SetDCBrushColor( lpnmcd->hdc, lpnmlvcd->clrFace );
-                                        FillRect( lpnmcd->hdc, &lpnmcd->rc, ( HBRUSH )GetStockObject( DC_BRUSH ) );
+                                        PFD_FillSolidRect( lpnmcd->hdc, &lpnmcd->rc, lpnmlvcd->clrFace );
                                         InflateRect( &lpnmcd->rc, -1, -1 );
-                                        SetDCBrushColor( lpnmcd->hdc, vColors[ lpnmcd->dwItemSpec ] );
-                                        FillRect( lpnmcd->hdc, &lpnmcd->rc, ( HBRUSH )GetStockObject( DC_BRUSH ) );
+                                        PFD_FillSolidRect( lpnmcd->hdc, &lpnmcd->rc, vColors[ lpnmcd->dwItemSpec ] );
                                         DrawEdge( lpnmcd->hdc, &lpnmcd->rc, BDR_SUNKENINNER, BF_RECT );
                                     }
                                     SetWindowLongPtr( hWnd, DWLP_MSGRESULT, CDRF_SKIPDEFAULT );

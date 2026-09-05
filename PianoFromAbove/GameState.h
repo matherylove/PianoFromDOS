@@ -9,15 +9,58 @@
 *************************************************************************************************/
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 #include <map>
 #include <string>
+#include <vector>
 using namespace std;
 
-#include <boost\circular_buffer.hpp>
-using namespace boost;
+// Small fixed-capacity deque used instead of boost::circular_buffer.
+// Kept C++98-compatible for the Windows 98 toolchain.
+template <class T>
+class PFDFixedBuffer
+{
+public:
+    explicit PFDFixedBuffer(size_t capacity) : m_Data(capacity), m_Capacity(capacity), m_Begin(0), m_Size(0) {}
 
-#include "ProtoBuf\MetaData.pb.h"
+    bool empty() const { return m_Size == 0; }
+    bool full() const { return m_Size == m_Capacity && m_Capacity != 0; }
+    size_t size() const { return m_Size; }
+
+    T &front() { return m_Data[m_Begin]; }
+    const T &front() const { return m_Data[m_Begin]; }
+    T &back() { return m_Data[(m_Begin + m_Size - 1) % m_Capacity]; }
+    const T &back() const { return m_Data[(m_Begin + m_Size - 1) % m_Capacity]; }
+
+    void push_back(const T &value)
+    {
+        if (m_Capacity == 0) return;
+        if (m_Size < m_Capacity) {
+            m_Data[(m_Begin + m_Size) % m_Capacity] = value;
+            ++m_Size;
+        } else {
+            m_Data[m_Begin] = value;
+            m_Begin = (m_Begin + 1) % m_Capacity;
+        }
+    }
+
+    void pop_front()
+    {
+        if (m_Size == 0) return;
+        m_Begin = (m_Begin + 1) % m_Capacity;
+        --m_Size;
+        if (m_Size == 0) m_Begin = 0;
+    }
+
+    void clear() { m_Begin = 0; m_Size = 0; }
+
+private:
+    std::vector<T> m_Data;
+    size_t m_Capacity, m_Begin, m_Size;
+};
+
+
+#include "MetaData.h"
 #include "Renderer.h"
 #include "MIDI.h"
 #include "Misc.h"
@@ -333,7 +376,7 @@ private:
     int m_iLearnOrdinal, m_iLearnTrack, m_iLearnChannel, m_iLearnPos;
     int m_iNotesAlpha, m_iNotesTime, m_iWaitingAlpha, m_iWaitingTime;
     int m_iGoodCount;
-    circular_buffer< pair< int, int > > m_cbLastNotes;
+    PFDFixedBuffer< pair< int, int > > m_cbLastNotes;
     long long m_llTransitionTime, m_llMinTime;
 
     // Scoring and notifications

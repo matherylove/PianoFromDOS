@@ -9,8 +9,8 @@
 *************************************************************************************************/
 #pragma once
 
-#include <Windows.h>
-#include <CommCtrl.h>
+#include <windows.h>
+#include <commctrl.h>
 #include <string>
 using namespace std;
 

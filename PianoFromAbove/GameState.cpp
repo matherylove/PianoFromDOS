@@ -1432,11 +1432,9 @@ void MainScreen::ProcessInput()
                 }
             }
 
-            // Resets the windows inactivity timer
-            INPUT in = { 0 };
-            in.type = INPUT_MOUSE;
-            in.mi.dwFlags = MOUSEEVENTF_MOVE;
-            SendInput( 1, &in, sizeof( INPUT ) );
+            // Resets the Windows inactivity timer. SendInput is Windows 2000+;
+            // mouse_event is available on Windows 98.
+            mouse_event( MOUSEEVENTF_MOVE, 0, 0, 0, 0 );
         }
     }
 }

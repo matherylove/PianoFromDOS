@@ -1,0 +1,22 @@
+PianoFromDOS - Windows 98 runtime requirements
+==============================================
+
+Target:
+  * Windows 98 / Windows 98 Second Edition (32-bit x86)
+  * DirectX 9.0c-era runtime with D3DX9_30.DLL
+  * Microsoft Layer for Unicode (UNICOWS.DLL) placed in the same directory as
+    PianoFromDOS.exe
+  * Common Controls 5.80 or later is recommended for the Unicode UI controls.
+
+The GitHub Actions build intentionally does not redistribute Microsoft's
+UNICOWS.DLL or D3DX9_30.DLL. Install/copy those runtimes from legally obtained
+Microsoft redistributables.
+
+Build architecture:
+  * redpanda-cpp/mingw-lite 32_686-msvcrt_win98 cross toolchain
+  * libunicows import library built from source during CI
+  * statically linked GCC/libstdc++ runtime
+  * Direct3D 9 + D3DX9_30 + WinMM
+
+PianoFromDOS is a compatibility port based on Piano From Above. See
+Original-PianoFromAbove-License.txt and the repository's Docs/License.txt.

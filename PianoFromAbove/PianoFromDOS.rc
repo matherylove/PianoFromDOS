@@ -1,0 +1,543 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include <windows.h>
+#include <commctrl.h>
+#ifndef IDC_STATIC
+#define IDC_STATIC -1
+#endif
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_LIBDLG DIALOGEX 0, 0, 117, 324
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    CONTROL         "",IDC_LIBRARYFILES,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,102,310
+END
+
+IDD_PP1_VISUAL DIALOGEX 0, 0, 302, 212
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_DISABLED | WS_BORDER
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    LTEXT           "Keys to display:",IDC_STATIC,7,7,52,8
+    CONTROL         "&Show all 88 keys",IDC_SHOWALLKEYS,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,7,19,69,10
+    CONTROL         "S&how song keys",IDC_SHOWSONGKEYS,"Button",BS_AUTORADIOBUTTON | WS_TABSTOP,7,33,67,10
+    CONTROL         "Show &keys:",IDC_SHOWCUSTOMKEYS,"Button",BS_AUTORADIOBUTTON | WS_TABSTOP,7,48,53,10
+    COMBOBOX        IDC_FIRSTKEY,61,47,32,30,CBS_DROPDOWNLIST | WS_DISABLED | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "through",IDC_THROUGH,101,49,26,8,WS_DISABLED
+    COMBOBOX        IDC_LASTKEY,135,47,32,30,CBS_DROPDOWNLIST | WS_DISABLED | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Set Using Piano",IDC_SETUSINGPIANO,173,47,69,14,WS_DISABLED
+    CONTROL         "&Don't hide controls toolbar in full screen mode",IDC_SHOWCONTROLS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,64,161,10
+    LTEXT           "Track colors:",IDC_STATIC,7,82,42,8
+    CONTROL         "",IDC_COLOR1,"Button",BS_OWNERDRAW,53,80,13,12,WS_EX_CLIENTEDGE
+    CONTROL         "",IDC_COLOR2,"Button",BS_OWNERDRAW,68,80,13,12,WS_EX_CLIENTEDGE
+    CONTROL         "",IDC_COLOR3,"Button",BS_OWNERDRAW,83,80,13,12,WS_EX_CLIENTEDGE
+    CONTROL         "",IDC_COLOR4,"Button",BS_OWNERDRAW,98,80,13,12,WS_EX_CLIENTEDGE
+    CONTROL         "",IDC_COLOR5,"Button",BS_OWNERDRAW,113,80,13,12,WS_EX_CLIENTEDGE
+    CONTROL         "",IDC_COLOR6,"Button",BS_OWNERDRAW,128,80,13,12,WS_EX_CLIENTEDGE
+    LTEXT           "Background color:",IDC_STATIC,155,82,58,8
+    CONTROL         "",IDC_BKGCOLOR,"Button",BS_OWNERDRAW,217,80,13,12,WS_EX_CLIENTEDGE
+    PUSHBUTTON      "&Restore Defaults",IDC_RESTOREDEFAULTS,226,191,69,14
+END
+
+IDD_PP2_AUDIO DIALOGEX 0, 0, 300, 212
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_DISABLED | WS_CAPTION
+CAPTION "Property Page"
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    LTEXT           "MIDI &output device:",IDC_STATIC,7,7,65,8
+    LISTBOX         IDC_MIDIOUT,7,18,286,44,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "MIDI &input device:",IDC_STATIC,7,66,60,8
+    LISTBOX         IDC_MIDIIN,7,76,286,44,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+END
+
+IDD_PP3_VIDEO DIALOGEX 0, 0, 300, 212
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_DISABLED | WS_CAPTION
+CAPTION "Property Page"
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    LTEXT           "Renderer:",IDC_STATIC,13,18,34,8
+    CONTROL         "&Direct3D",IDC_DIRECT3D,"Button",BS_AUTORADIOBUTTON | WS_GROUP,13,29,43,10
+    CONTROL         "&OpenGL",IDC_OPENGL,"Button",BS_AUTORADIOBUTTON | WS_DISABLED,13,42,41,10
+    CONTROL         "&GDI",IDC_GDI,"Button",BS_AUTORADIOBUTTON | WS_DISABLED,13,55,28,10
+    CONTROL         "Display &frame rate",IDC_DISPLAYFPS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,68,75,10
+    CONTROL         "&Limit frame rate",IDC_LIMITFPS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,81,66,10
+    GROUPBOX        "Video options (advanced users only)",IDC_STATIC,7,7,286,91
+END
+
+IDD_PP5_LIBRARY DIALOGEX 0, 0, 300, 212
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_DISABLED | WS_CAPTION
+CAPTION " "
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    LTEXT           "&Library:",IDC_STATIC,7,7,66,8
+    CONTROL         "",IDC_LIBRARY,"SysListView32",LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SORTASCENDING | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,18,286,154
+    CONTROL         "Add songs to library when &opened",IDC_ALWAYSADD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,168,176,125,10,WS_EX_RIGHT
+    PUSHBUTTON      "Add Fol&der...",IDC_ADDFOLDER,120,191,55,14
+    PUSHBUTTON      "Add &File(s)...",IDC_ADDFILE,179,191,55,14
+    PUSHBUTTON      "&Remove",IDC_REMOVE,238,191,55,14
+END
+
+IDD_TRACKSETTINGS DIALOGEX 0, 0, 301, 183
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Track Settings"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "File:",IDC_STATIC,7,7,14,8
+    EDITTEXT        IDC_FILE,50,7,244,8,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
+    LTEXT           "Folder:",IDC_STATIC,7,17,24,8
+    EDITTEXT        IDC_FOLDER,50,17,244,8,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
+    LTEXT           "Notes:",IDC_STATIC,7,27,22,8
+    EDITTEXT        IDC_NOTES,50,27,244,8,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
+    LTEXT           "Length:",IDC_STATIC,7,37,26,8
+    EDITTEXT        IDC_LENGTH,50,37,244,8,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
+    CONTROL         "",IDC_TRACKS,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,50,287,108
+    DEFPUSHBUTTON   "OK",IDOK,189,162,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,244,162,50,14
+END
+
+IDD_PP4_CONTROLS DIALOGEX 0, 0, 300, 212
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_DISABLED | WS_CAPTION
+CAPTION "Property Page"
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    GROUPBOX        "General",IDC_STATIC,7,7,288,53
+    LTEXT           "&Left and right arrows advance by:",IDC_STATIC,13,20,110,8
+    EDITTEXT        IDC_LRARROWS,125,18,40,14,ES_AUTOHSCROLL
+    CONTROL         "",IDC_LRARROWSSPIN,"msctls_updown32",UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,153,18,11,14
+    LTEXT           "seconds",IDC_STATIC,168,20,27,8
+    LTEXT           "&Up and down arrows speed up by:",IDC_STATIC,13,41,111,8
+    EDITTEXT        IDC_UDARROWS,125,39,40,14,ES_AUTOHSCROLL
+    CONTROL         "",IDC_UDARROWSSPIN,"msctls_updown32",UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,153,39,11,14
+    LTEXT           "percent",IDC_STATIC,168,41,26,8
+    GROUPBOX        "Keyboard controls",IDC_PIANOGROUP,7,66,286,101
+    LTEXT           "Play/Pause:",IDC_STATIC,13,82,39,8
+    CONTROL         "Click here to set...",ID_PLAY_PLAYPAUSE,"Button",BS_OWNERDRAW | BS_FLAT,56,79,84,14
+    LTEXT           "Stop:",IDC_STATIC,13,98,18,8
+    CONTROL         "Click here to set...",ID_PLAY_STOP,"Button",BS_OWNERDRAW | BS_FLAT,56,95,84,14
+    LTEXT           "Skip Fwd:",IDC_STATIC,13,114,32,8
+    CONTROL         "Click here to set...",ID_PLAY_SKIPFWD,"Button",BS_OWNERDRAW | BS_FLAT,56,111,84,14
+    LTEXT           "Skip Back:",IDC_STATIC,13,130,33,8
+    CONTROL         "Click here to set...",ID_PLAY_SKIPBACK,"Button",BS_OWNERDRAW | BS_FLAT,56,127,84,14
+    LTEXT           "Loop:",IDC_STATIC,150,82,19,8
+    CONTROL         "Click here to set...",ID_PLAY_LOOP,"Button",BS_OWNERDRAW | BS_FLAT,203,79,84,14
+    LTEXT           "Increase Rate:",IDC_STATIC,150,98,49,8
+    CONTROL         "Click here to set...",ID_PLAY_INCREASERATE,"Button",BS_OWNERDRAW | BS_FLAT,203,95,84,14
+    LTEXT           "Decrease Rate:",IDC_STATIC,150,114,51,8
+    CONTROL         "Click here to set...",ID_PLAY_DECREASERATE,"Button",BS_OWNERDRAW | BS_FLAT,203,111,84,14
+    LTEXT           "Reset Rate:",IDC_STATIC,150,130,40,8
+    CONTROL         "Click here to set...",ID_PLAY_RESETRATE,"Button",BS_OWNERDRAW | BS_FLAT,203,127,84,14
+    PUSHBUTTON      "&Reset",IDC_RESET,237,147,50,14
+    ICON            "",IDC_LOCK,13,141,20,20
+END
+
+IDD_NOTESPAN DIALOGEX 0, 0, 144, 110
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_BORDER | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CTEXT           "Instructions",IDC_INSTRUCTIONS,7,7,130,18
+    GROUPBOX        "Low Note",IDC_STATIC,7,30,60,54
+    CTEXT           "?",IDC_FIRSTNOTE,15,40,44,39,SS_CENTERIMAGE
+    GROUPBOX        "High Note",IDC_STATIC,77,30,60,54
+    CTEXT           "?",IDC_LASTNOTE,85,40,44,39,SS_CENTERIMAGE
+    PUSHBUTTON      "Cancel",IDCANCEL,87,89,50,14
+END
+
+IDD_NOTELABEL DIALOGEX 0, 0, 155, 56
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_SYSMENU
+EXSTYLE WS_EX_STATICEDGE
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CTEXT           "Enter a note label:",IDC_STATIC,7,7,141,8
+    EDITTEXT        IDC_NOTELABEL,7,17,141,14,ES_CENTER | ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,25,35,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,80,35,50,14
+END
+
+IDD_ABOUT DIALOGEX 0, 0, 234, 169
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "PianoFromDOS"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_STATIC,"Static",SS_WHITERECT,0,1,234,147
+    CONTROL         "",IDC_PICTURE,"Static",SS_BITMAP,0,0,15,13
+    LTEXT           "PianoFromDOS 1.1.0\n©2010 Brian Pantano",IDC_STATIC,88,7,139,21
+    LTEXT           "Enjoy",IDC_LICENSE,88,40,139,12
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,147,233,1
+    DEFPUSHBUTTON   "OK",IDOK,177,151,50,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_LIBDLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 109
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 317
+    END
+
+    IDD_PP1_VISUAL, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 295
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 205
+    END
+
+    IDD_PP2_AUDIO, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 293
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 205
+    END
+
+    IDD_PP3_VIDEO, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 293
+        VERTGUIDE, 13
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 205
+    END
+
+    IDD_PP5_LIBRARY, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 293
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 205
+    END
+
+    IDD_TRACKSETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 294
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 176
+    END
+
+    IDD_PP4_CONTROLS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 293
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 205
+    END
+
+    IDD_NOTESPAN, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 137
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 103
+    END
+
+    IDD_NOTELABEL, DIALOG
+    BEGIN
+    END
+
+    IDD_ABOUT, DIALOG
+    BEGIN
+        VERTGUIDE, 227
+        BOTTOMMARGIN, 165
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDM_MAINMENU MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&Practice Song...\tCtrl+O",   ID_FILE_PRACTICESONG
+        MENUITEM "P&ractice Using Custom Settings...", ID_FILE_PRACTICESONGCUSTOM
+        MENUITEM "Pl&ay Song...",               ID_FILE_PLAYSONG
+        MENUITEM "&Learn Song...",              ID_FILE_LEARNSONG
+        MENUITEM "&Close File\tCtrl+W",         ID_FILE_CLOSEFILE
+        MENUITEM SEPARATOR
+        POPUP "Librar&y"
+        BEGIN
+            MENUITEM "Add &File(s)...\tCtrl+F",     ID_FILE_ADDFILE
+            MENUITEM "Add Fol&der...\tCtrl+D",      ID_FILE_ADDFOLDER
+        END
+    END
+    POPUP "&Play"
+    BEGIN
+        MENUITEM "&Play/Pause\tSpace",          ID_PLAY_PLAYPAUSE
+        MENUITEM "&Stop\tPeriod",               ID_PLAY_STOP
+        MENUITEM "Skip &Fwd\tRight",            ID_PLAY_SKIPFWD
+        MENUITEM "Skip &Back\tLeft",            ID_PLAY_SKIPBACK
+        MENUITEM SEPARATOR
+        MENUITEM "&Loop\tCtrl+L",               ID_PLAY_LOOP
+        POPUP "L&earn"
+        BEGIN
+            MENUITEM "&Adaptive",                   ID_LEARN_ADAPTIVE
+            MENUITEM "&Waiting",                    ID_LEARN_WAITING, CHECKED
+            MENUITEM SEPARATOR
+            MENUITEM "Ne&xt Track\tCtrl+X",         ID_LEARN_NEXTTRACK
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "F&aster Playback\tDown",      ID_PLAY_INCREASERATE
+        MENUITEM "Sl&ower Playback\tUp",        ID_PLAY_DECREASERATE
+        MENUITEM "&Reset\tR",                   ID_PLAY_RESET
+        MENUITEM SEPARATOR
+        MENUITEM "Faster &Notes\tShift+Up",     ID_PLAY_FASTERNOTES
+        MENUITEM "Slower No&tes\tShift+Down",   ID_PLAY_SLOWERNOTE
+        MENUITEM SEPARATOR
+        MENUITEM "&Volume Up\tAlt+Up",          ID_PLAY_VOLUMEUP
+        MENUITEM "V&olume Down\tAlt+Down",      ID_PLAY_VOLUMEDOWN
+        MENUITEM "&Mute\tM",                    ID_PLAY_MUTE
+    END
+    POPUP "&View"
+    BEGIN
+        MENUITEM "&Playback Toolbar\tCtrl+T",   ID_VIEW_CONTROLS, CHECKED
+        MENUITEM "&Library Panel\tCtrl+Y",      ID_VIEW_LIBRARY, CHECKED
+        MENUITEM "&Keyboard\tCtrl+K",           ID_VIEW_KEYBOARD, CHECKED
+        MENUITEM "&Note Labels\tCtrl+N",        ID_VIEW_NOTELABELS
+        MENUITEM SEPARATOR
+        MENUITEM "&Always On Top\tCtrl+A",      ID_VIEW_ALWAYSONTOP
+        MENUITEM SEPARATOR
+        MENUITEM "&Full Screen\tAlt+Enter",     ID_VIEW_FULLSCREEN
+        MENUITEM "Mo&ve and Zoom\tCtrl+V",      ID_VIEW_MOVEANDZOOM
+        MENUITEM "Reset Move and &Zoom\tCtrl+Z", ID_VIEW_RESETMOVEANDZOOM
+    END
+    POPUP "&Options"
+    BEGIN
+        MENUITEM "&Preferences...\tCtrl+P",     ID_OPTIONS_PREFERENCES
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "&Online FAQ...",              ID_HELP_ONLINEFAQ
+        MENUITEM "&About PFA...",               ID_HELP_ABOUT
+    END
+END
+
+IDR_CONTEXTMENU MENU
+BEGIN
+    POPUP "Library"
+    BEGIN
+        MENUITEM "&Practice Song",              ID_PRACTICE_DEFAULT
+        MENUITEM "Practice Using &Custom Settings...", ID_PRACTICE_CUSTOM
+        MENUITEM "Pl&ay Song",                  ID_PLAY_DEFAULT
+        MENUITEM "&Learn Song",                 ID_LEARN_DEFAULT
+        MENUITEM SEPARATOR
+        MENUITEM "Add &File(s)...\tCtrl+F",     ID_FILE_ADDFILE
+        MENUITEM "Add Fol&der...\tCtrl+D",      ID_FILE_ADDFOLDER
+        MENUITEM "&Refresh",                    ID_FILE_REFRESH
+    END
+    POPUP "Graphics"
+    BEGIN
+        POPUP "&File"
+        BEGIN
+            MENUITEM "&Practice Song...\tCtrl+O",   ID_FILE_PRACTICESONG
+            MENUITEM "Pl&ay Song...",               ID_FILE_PLAYSONG
+            MENUITEM "&Learn Song...",              ID_FILE_LEARNSONG
+            MENUITEM "&Close File\tCtrl+W",         ID_FILE_CLOSEFILE
+            MENUITEM SEPARATOR
+            POPUP "Librar&y"
+            BEGIN
+                MENUITEM "Add &File(s)...\tCtrl+F",     ID_FILE_ADDFILE
+                MENUITEM "Add Fol&der...\tCtrl+D",      ID_FILE_ADDFOLDER
+            END
+        END
+        POPUP "&View"
+        BEGIN
+            MENUITEM "&Playback Toolbar\tCtrl+T",   ID_VIEW_CONTROLS, CHECKED
+            MENUITEM "&Library Panel\tCtrl+Y",      ID_VIEW_LIBRARY, CHECKED
+            MENUITEM "&Keyboard\tCtrl+K",           ID_VIEW_KEYBOARD, CHECKED
+            MENUITEM "&Note Labels\tCtrl+N",        ID_VIEW_NOTELABELS
+            MENUITEM SEPARATOR
+            MENUITEM "&Always On Top\tCtrl+A",      ID_VIEW_ALWAYSONTOP
+            MENUITEM SEPARATOR
+            MENUITEM "&Full Screen\tAlt+Enter",     ID_VIEW_FULLSCREEN
+            MENUITEM "Mo&ve and Zoom\tCtrl+V",      ID_VIEW_MOVEANDZOOM
+            MENUITEM "Reset Move and &Zoom\tCtrl+Z", ID_VIEW_RESETMOVEANDZOOM
+        END
+        MENUITEM "Preferences...\tCtrl+P",      ID_OPTIONS_PREFERENCES
+        MENUITEM SEPARATOR
+        MENUITEM "&Play/Pause\tSpace",          ID_PLAY_PLAYPAUSE
+        MENUITEM "&Stop\tPeriod",               ID_PLAY_STOP
+        MENUITEM "Skip &Fwd\tRight",            ID_PLAY_SKIPFWD
+        MENUITEM "Skip &Back\tLeft",            ID_PLAY_SKIPBACK
+        MENUITEM SEPARATOR
+        MENUITEM "&Loop\tCtrl+L",               ID_PLAY_LOOP
+        POPUP "L&earn"
+        BEGIN
+            MENUITEM "&Adaptive",                   ID_LEARN_ADAPTIVE, CHECKED
+            MENUITEM "&Waiting",                    ID_LEARN_WAITING
+            MENUITEM SEPARATOR
+            MENUITEM "Ne&xt Track\tCtrl+X",         ID_LEARN_NEXTTRACK
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "F&aster Playback\tDown",      ID_PLAY_INCREASERATE
+        MENUITEM "Sl&ower Playback\tUp",        ID_PLAY_DECREASERATE
+        MENUITEM "&Reset\tR",                   ID_PLAY_RESETRATE
+        MENUITEM SEPARATOR
+        MENUITEM "Faster &Notes\tShift+Down",   ID_PLAY_NFASTER
+        MENUITEM "Slower No&tes\tShift+Up",     ID_PLAY_NSLOWER
+        MENUITEM SEPARATOR
+        MENUITEM "Volume &Up\tAlt+Up",          ID_PLAY_VOLUMEUP
+        MENUITEM "Volume &Down\tAlt+Down",      ID_PLAY_VOLUMEDOWN
+        MENUITEM "&Mute\tCtrl+M",               ID_PLAY_MUTE
+    END
+END
+
+IDR_HIDDENCMDS MENU
+BEGIN
+    POPUP ""
+    BEGIN
+        MENUITEM "Play",                        ID_PLAY_PLAY
+        MENUITEM "Pause",                       ID_PLAY_PAUSE
+        MENUITEM "Rebar",                       IDC_TOPREBAR
+        MENUITEM "Toolbar",                     IDC_TOPTOOLBAR
+        MENUITEM "Reset Device",                ID_VIEW_RESETDEVICE
+        MENUITEM "Inactivity Timer",            IDC_INACTIVITYTIMER
+        MENUITEM "Position Control",            IDC_POSNCTRL
+        MENUITEM "Note On",                     ID_MIDI_NOTEON
+        MENUITEM "Cancel Move and Zoom",        ID_VIEW_CANCELMOVEANDZOOM
+        MENUITEM "Change State",                ID_CHANGESTATE
+        MENUITEM "Set Label",                   ID_SETLABEL
+        MENUITEM "Game Error",                  ID_GAMEERROR
+        MENUITEM "Clear Loop",                  ID_PLAY_CLEARLOOP
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+IDA_MAINMENU ACCELERATORS
+BEGIN
+    "F",            ID_FILE_ADDFILE,        VIRTKEY, CONTROL, NOINVERT
+    "D",            ID_FILE_ADDFOLDER,      VIRTKEY, CONTROL, NOINVERT
+    "W",            ID_FILE_CLOSEFILE,      VIRTKEY, CONTROL, NOINVERT
+    "O",            ID_FILE_PRACTICESONG,   VIRTKEY, CONTROL, NOINVERT
+    "X",            ID_LEARN_NEXTTRACK,     VIRTKEY, CONTROL, NOINVERT
+    "P",            ID_OPTIONS_PREFERENCES, VIRTKEY, CONTROL, NOINVERT
+    VK_DOWN,        ID_PLAY_INCREASERATE,   VIRTKEY, CONTROL, NOINVERT
+    "L",            ID_PLAY_LOOP,           VIRTKEY, CONTROL, NOINVERT
+    "M",            ID_PLAY_MUTE,           VIRTKEY, CONTROL, NOINVERT
+    VK_DOWN,        ID_PLAY_NFASTER,        VIRTKEY, SHIFT, NOINVERT
+    "R",            ID_PLAY_NRESET,         VIRTKEY, SHIFT, NOINVERT
+    VK_UP,          ID_PLAY_NSLOWER,        VIRTKEY, SHIFT, NOINVERT
+    VK_SPACE,       ID_PLAY_PLAYPAUSE,      VIRTKEY, CONTROL, NOINVERT
+    "R",            ID_PLAY_RESETRATE,      VIRTKEY, CONTROL, NOINVERT
+    VK_LEFT,        ID_PLAY_SKIPBACK,       VIRTKEY, CONTROL, NOINVERT
+    VK_RIGHT,       ID_PLAY_SKIPFWD,        VIRTKEY, CONTROL, NOINVERT
+    VK_UP,          ID_PLAY_DECREASERATE,   VIRTKEY, CONTROL, NOINVERT
+    VK_OEM_PERIOD,  ID_PLAY_STOP,           VIRTKEY, CONTROL, NOINVERT
+    VK_DOWN,        ID_PLAY_VOLUMEDOWN,     VIRTKEY, ALT, NOINVERT
+    VK_UP,          ID_PLAY_VOLUMEUP,       VIRTKEY, ALT, NOINVERT
+    "A",            ID_VIEW_ALWAYSONTOP,    VIRTKEY, CONTROL, NOINVERT
+    "T",            ID_VIEW_CONTROLS,       VIRTKEY, CONTROL, NOINVERT
+    VK_RETURN,      ID_VIEW_FULLSCREEN,     VIRTKEY, ALT, NOINVERT
+    "K",            ID_VIEW_KEYBOARD,       VIRTKEY, CONTROL, NOINVERT
+    "Y",            ID_VIEW_LIBRARY,        VIRTKEY, CONTROL, NOINVERT
+    "V",            ID_VIEW_MOVEANDZOOM,    VIRTKEY, CONTROL, NOINVERT
+    VK_ESCAPE,      ID_VIEW_NOFULLSCREEN,   VIRTKEY, NOINVERT
+    "N",            ID_VIEW_NOTELABELS,     VIRTKEY, CONTROL, NOINVERT
+    "Z",            ID_VIEW_RESETMOVEANDZOOM, VIRTKEY, CONTROL, NOINVERT
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_MEDIAICONSSMALL     BITMAP                  "Images/mediaiconssmall.bmp"
+IDB_SPLASH              BITMAP                  "Images/Mirror Small.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_PFAICON             ICON                    "Images/PFA Icon.ico"
+IDI_WELCOME             ICON                    "Images/Welcome.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// MIDI
+//
+
+IDR_SPLASHMIDI          MIDI                    "Images\\Godowsky - Study of Chopin Etude Op. 10, No. 1.mid"
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

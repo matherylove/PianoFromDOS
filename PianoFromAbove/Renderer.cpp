@@ -76,29 +76,29 @@ HRESULT D3D9Renderer::Init( HWND hWnd, bool bLimitFPS )
     if( FAILED( hr = D3DXCreateSprite( m_pd3dDevice, &m_pTextSprite ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFont( m_pd3dDevice, 15, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
-                                     OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                     L"Tahoma", &m_pSmallFont ) ) )
+    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 15, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                      "Tahoma", &m_pSmallFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFont( m_pd3dDevice, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
-                                     OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                     L"Tahoma", &m_pSmallBoldFont ) ) )
+    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                      "Tahoma", &m_pSmallBoldFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFont( m_pd3dDevice, 20, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
-                                     OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                     L"Comic Sans MS", &m_pSmallComicFont ) ) )
+    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 20, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                      "Comic Sans MS", &m_pSmallComicFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFont( m_pd3dDevice, 25, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
-                                     OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                     L"Tahoma", &m_pMediumFont ) ) )
+    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 25, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                      "Tahoma", &m_pMediumFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFont( m_pd3dDevice, 35, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
-                                     OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                     L"Tahoma", &m_pLargeFont ) ) )
+    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 35, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+                                      OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                                      "Tahoma", &m_pLargeFont ) ) )
         return hr;
 
     if ( FAILED( hr = RestoreDeviceObjects() ) )

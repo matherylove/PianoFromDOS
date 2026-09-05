@@ -7,9 +7,9 @@
 * Copyright (c) 2010 Brian Pantano. All rights reserved.
 *
 *************************************************************************************************/
-#include <TChar.h>
+#include <tchar.h>
 #include <shlobj.h>
-#include <Dbt.h>
+#include <dbt.h>
 
 #include <set>
 
@@ -950,17 +950,13 @@ LRESULT WINAPI PosnProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                 hDCBkg, rcCtrl.left - rcOwner.left + ps.rcPaint.left, rcCtrl.top - rcOwner.top + ps.rcPaint.top, SRCCOPY );
             if ( bEnabled )
             {
-                SetDCBrushColor( hDCMem, RGB( 255, 255, 255 ) );
-                HBRUSH hBrush = ( HBRUSH )GetStockObject( DC_BRUSH );
-                FillRect( hDCMem, &rcChannel, hBrush );
+                PFD_FillSolidRect( hDCMem, &rcChannel, RGB( 255, 255, 255 ) );
                 if ( iLoopStart >= 0 && ( iLoopEnd >= 0 || iPosition >= iLoopStart ) )
                 {
-                    SetDCBrushColor( hDCMem, RGB( 63, 72, 204 ) );
-                    HBRUSH hBrush = ( HBRUSH )GetStockObject( DC_BRUSH );
                     int iStartPos = ( 2 * iLoopStart * ( rcChannel.right - rcChannel.left - 1 ) + 1000 ) / ( 2 * 1000 );
                     int iEndPos = ( 2 * ( iLoopEnd >= 0 ? iLoopEnd : iPosition ) * ( rcChannel.right - rcChannel.left - 1 ) + 1000 ) / ( 2 * 1000 ) + 1;
                     RECT rcLoop = { rcChannel.left + iStartPos, rcChannel.top, rcChannel.left + iEndPos, rcChannel.bottom };
-                    FillRect( hDCMem, &rcLoop, hBrush );
+                    PFD_FillSolidRect( hDCMem, &rcLoop, RGB( 63, 72, 204 ) );
                 }
             }
             DrawEdge( hDCMem, &rcChannel, BDR_SUNKENOUTER, BF_RECT );
@@ -1129,7 +1125,7 @@ INT_PTR WINAPI LibDlgProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             // Set up the list view
             RECT rcLibrary;
             HWND hWndLibrary = GetDlgItem( hWnd, IDC_LIBRARYFILES );
-            SendMessage( hWndLibrary, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT );
+            SendMessage( hWndLibrary, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_FULLROWSELECT );
             GetWindowRect( hWndLibrary, &rcLibrary );
             iLibXOffset = rcLibrary.left - rcDlg.left;
             iLibYOffset = rcLibrary.top - rcDlg.top;
@@ -1489,10 +1485,11 @@ VOID AddSingleLibraryFile( HWND hWndLibrary, const wstring &sFile )
     Config &config = Config::GetConfig();
     const SongLibrary &cLibrary = config.GetSongLibrary();
     const map< wstring, vector< PFAData::File* >* > &mFiles = cLibrary.GetFiles();
-    if ( mFiles.find( sFile ) == mFiles.end() ) return;
+    map< wstring, vector< PFAData::File* >* >::const_iterator itFileList = mFiles.find( sFile );
+    if ( itFileList == mFiles.end() || !itFileList->second || itFileList->second->empty() ) return;
 
     // Set up insertion item
-    const PFAData::File *pInfo = mFiles.at( sFile )->at( 0 );
+    const PFAData::File *pInfo = itFileList->second->at( 0 );
     LVITEM lvi = { 0 };
     lvi.mask = LVIF_TEXT | LVIF_PARAM;
     lvi.iItem = 0;
