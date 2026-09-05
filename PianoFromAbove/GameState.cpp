@@ -279,10 +279,8 @@ GameState::GameError SplashScreen::Logic()
 
     // Time stuff
     long long llMaxTime = m_MIDI.GetInfo().llTotalMicroSecs + 500000;
-    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic reading timer.\r\n" );
     long long llElapsed = m_Timer.GetMicroSecs();
     m_Timer.Start();
-    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic timer updated.\r\n" );
 
     // If we just paused, kill the music. SetVolume is better than AllNotesOff
     if ( ( bPausedChanged || bMuteChanged ) && ( m_bPaused || m_bMute ) )
@@ -296,9 +294,7 @@ GameState::GameError SplashScreen::Logic()
     long long llEndTime = m_llStartTime + TimeSpan;
 
     // Needs start time to be set. For creating textparticles.
-    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic calling RenderGlobals.\r\n" );
     RenderGlobals();
-    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic RenderGlobals returned.\r\n" );
 
     // Advance end position
     int iEventCount = (int)m_vEvents.size();
