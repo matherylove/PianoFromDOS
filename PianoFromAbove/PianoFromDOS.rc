@@ -525,7 +525,7 @@ IDI_WELCOME             ICON                    "Images/Welcome.ico"
 // MIDI
 //
 
-IDR_SPLASHMIDI          MIDI                    "Images\\Godowsky - Study of Chopin Etude Op. 10, No. 1.mid"
+IDR_SPLASHMIDI          MIDI                    "Images/Godowsky - Study of Chopin Etude Op. 10, No. 1.mid"
 #endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
