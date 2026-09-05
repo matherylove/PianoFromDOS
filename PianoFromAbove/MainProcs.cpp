@@ -10,6 +10,7 @@
 #include <tchar.h>
 #include <shlobj.h>
 #include <dbt.h>
+#include <stdio.h>
 
 #include <set>
 
@@ -692,69 +693,102 @@ LRESULT WINAPI BarProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
     return CallWindowProc( g_pPrevBarProc, hWnd, msg, wParam, lParam);
 }
 
+static void PFD_LogRebarStage( const char *pszStage, DWORD dwError )
+{
+    FILE *fp = fopen( "PianoFromDOS-startup.log", "a" );
+    if ( !fp ) return;
+    if ( dwError )
+        fprintf( fp, "CreateRebar: %s (GetLastError=%lu)\r\n", pszStage, ( unsigned long )dwError );
+    else
+        fprintf( fp, "CreateRebar: %s\r\n", pszStage );
+    fclose( fp );
+}
+
 HWND CreateRebar( HWND hWndOwner )
 {
-    // Create the Rebar. Just houses the toolbar.
-    HWND hWndRebar = CreateWindowEx( WS_EX_CONTROLPARENT, REBARCLASSNAME, NULL, 
-        WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CCS_NODIVIDER | RBS_VARHEIGHT,
-        0, 0, 0, 0, hWndOwner, ( HMENU )IDC_TOPREBAR, g_hInstance, NULL );
-    if( !hWndRebar ) return NULL;
+    RECT rcOwnerClient;
+    GetClientRect( hWndOwner, &rcOwnerClient );
+    int iInitialBarWidth = rcOwnerClient.right - rcOwnerClient.left;
+    if ( iInitialBarWidth < 1 ) iInitialBarWidth = 1;
+    const int iToolbarHeight = 31;
+    const int iPosnHeight = 20;
+    const int iInitialBarHeight = iToolbarHeight + iPosnHeight;
 
-    // Create the system font
+    SetLastError( 0 );
+    HWND hWndRebar = CreateWindowEx( WS_EX_CONTROLPARENT, REBARCLASSNAME, NULL,
+        WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CCS_NODIVIDER | RBS_VARHEIGHT,
+        0, 0, iInitialBarWidth, iInitialBarHeight,
+        hWndOwner, ( HMENU )IDC_TOPREBAR, g_hInstance, NULL );
+    if ( !hWndRebar )
+    {
+        PFD_LogRebarStage( "FAILED creating rebar window", GetLastError() );
+        return NULL;
+    }
+    PFD_LogRebarStage( "rebar window created", 0 );
+
     const INT ITEM_POINT_SIZE = 10;
     HDC hDC = GetDC( hWndOwner );
     INT nFontHeight = MulDiv( ITEM_POINT_SIZE, GetDeviceCaps( hDC, LOGPIXELSY ), 72 );
     HFONT hFont = CreateFont( nFontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                               CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, TEXT( "MS Shell Dlg 2" ) );
-    ReleaseDC(hWndOwner, hDC);
+    ReleaseDC( hWndOwner, hDC );
 
-    // Create and load the button icons
     HIMAGELIST hIml = ImageList_LoadImage( g_hInstance, MAKEINTRESOURCE( IDB_MEDIAICONSSMALL ),
-                                           16, 20, RGB( 255, 255, 0), IMAGE_BITMAP, LR_CREATEDIBSECTION );
+                                           16, 20, RGB( 255, 255, 0 ), IMAGE_BITMAP, LR_CREATEDIBSECTION );
+    if ( !hIml ) PFD_LogRebarStage( "WARNING: media toolbar image list failed to load", GetLastError() );
+    else PFD_LogRebarStage( "media toolbar image list loaded", 0 );
 
-    // Create the toolbar. Houses custom controls too. Don't want multiple rebar brands because you lose too much control
-    HWND hWndToolbar = CreateWindowEx( WS_EX_CONTROLPARENT, TOOLBARCLASSNAME, NULL, 
-                                       WS_CHILD | WS_VISIBLE | WS_TABSTOP | CCS_NODIVIDER | CCS_NOPARENTALIGN | CCS_NORESIZE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS,
-                                       0, 0, 0, 0, hWndRebar, ( HMENU )IDC_TOPTOOLBAR, g_hInstance, NULL);
-    if (hWndToolbar == NULL)
+    SetLastError( 0 );
+    HWND hWndToolbar = CreateWindowEx( WS_EX_CONTROLPARENT, TOOLBARCLASSNAME, NULL,
+                                       WS_CHILD | WS_VISIBLE | WS_TABSTOP | CCS_NODIVIDER | CCS_NOPARENTALIGN |
+                                       CCS_NORESIZE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS,
+                                       0, 0, iInitialBarWidth, iToolbarHeight,
+                                       hWndRebar, ( HMENU )IDC_TOPTOOLBAR, g_hInstance, NULL );
+    if ( !hWndToolbar )
+    {
+        PFD_LogRebarStage( "FAILED creating toolbar window", GetLastError() );
+        DestroyWindow( hWndRebar );
         return NULL;
+    }
+    PFD_LogRebarStage( "toolbar window created", 0 );
 
-    TBBUTTON tbButtons[8] = 
+    TBBUTTON tbButtons[8] =
     {
         { MAKELONG(0, 0), ID_PLAY_PLAY, 0, BTNS_BUTTON, {0}, 0, ( INT_PTR )TEXT( "Play" ) },
         { MAKELONG(1, 0), ID_PLAY_PAUSE, 0, BTNS_BUTTON, {0}, 0, ( INT_PTR )TEXT( "Pause" ) },
         { MAKELONG(2, 0), ID_PLAY_STOP, 0, BTNS_BUTTON, {0}, 0, ( INT_PTR )TEXT( "Stop" ) },
-        { 0, 0, TBSTATE_ENABLED, BTNS_SEP, {0}, 0, NULL },
+        { 0, 0, TBSTATE_ENABLED, BTNS_SEP, {0}, 0, 0 },
         { MAKELONG(3, 0), ID_PLAY_SKIPBACK, 0, BTNS_BUTTON, {0}, 0, ( INT_PTR )TEXT( "Skip Back" ) },
         { MAKELONG(4, 0), ID_PLAY_SKIPFWD, 0, BTNS_BUTTON, {0}, 0, ( INT_PTR )TEXT( "Skip Fwd" ) },
-        { 0, 0, TBSTATE_ENABLED, BTNS_SEP, {0}, 0, NULL },
+        { 0, 0, TBSTATE_ENABLED, BTNS_SEP, {0}, 0, 0 },
         { MAKELONG(5, 0), ID_PLAY_MUTE, TBSTATE_ENABLED, BTNS_BUTTON, {0}, 0, ( INT_PTR )TEXT( "Mute" ) }
     };
 
-    // First add the toolbar buttons
     g_pPrevBarProc = ( WNDPROC )SetWindowLongPtr( hWndToolbar, GWLP_WNDPROC, ( LONG_PTR )BarProc );
     SendMessage( hWndToolbar, TB_SETIMAGELIST, 0, ( LPARAM )hIml );
     SendMessage( hWndToolbar, TB_SETMAXTEXTROWS, 0, 0 );
     SendMessage( hWndToolbar, TB_BUTTONSTRUCTSIZE, sizeof( TBBUTTON ), 0 );
-    SendMessage( hWndToolbar, TB_ADDBUTTONS, sizeof( tbButtons ) / sizeof( TBBUTTON ), ( LPARAM )&tbButtons );
+    LRESULT lAdded = SendMessage( hWndToolbar, TB_ADDBUTTONS,
+                                  sizeof( tbButtons ) / sizeof( TBBUTTON ), ( LPARAM )&tbButtons );
+    if ( !lAdded ) PFD_LogRebarStage( "WARNING: TB_ADDBUTTONS returned FALSE", GetLastError() );
+    else PFD_LogRebarStage( "toolbar buttons added", 0 );
     SendMessage( hWndToolbar, TB_SETBUTTONSIZE, 0, MAKELONG( 32, 29 ) );
-    SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
 
-    // Now add the other controls
-    HWND hWndVolume = CreateWindowEx( 0, TRACKBAR_CLASS, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS | TBS_TOOLTIPS,
+    HWND hWndVolume = CreateWindowEx( 0, TRACKBAR_CLASS, NULL,
+                                      WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS | TBS_TOOLTIPS,
                                       209, 2, 75, 26, hWndToolbar, ( HMENU )IDC_VOLUME, g_hInstance, NULL );
     SendMessage( hWndVolume, TBM_SETRANGE, FALSE, MAKELONG( 0, 100 ) );
-    SendMessage( hWndVolume, TBM_SETLINESIZE, 0, 5 ); 
+    SendMessage( hWndVolume, TBM_SETLINESIZE, 0, 5 );
 
     HWND hWndStatic1 = CreateWindowEx( 0, WC_STATIC, NULL, WS_CHILD | WS_VISIBLE | SS_BLACKFRAME,
                                        288, 2, 1, 25, hWndToolbar, NULL, g_hInstance, NULL );
     HWND hWndStatic2 = CreateWindowEx( 0, WC_STATIC, NULL, WS_CHILD | WS_VISIBLE | SS_WHITEFRAME,
                                        289, 2, 1, 25, hWndToolbar, NULL, g_hInstance, NULL );
-
     HWND hWndStatic3 = CreateWindowEx( 0, WC_STATIC, TEXT( "Metronome:" ), WS_CHILD | WS_VISIBLE | SS_LEFT,
                                        297, 8, 60, 13, hWndToolbar, NULL, g_hInstance, NULL );
-    HWND hWndMetronome = CreateWindowEx( 0, WC_COMBOBOX, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
-                                       361, 4, 99, 100, hWndToolbar, ( HMENU )IDC_METRONOME, g_hInstance, NULL );
+    HWND hWndMetronome = CreateWindowEx( 0, WC_COMBOBOX, NULL,
+                                         WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
+                                         361, 4, 99, 100, hWndToolbar, ( HMENU )IDC_METRONOME, g_hInstance, NULL );
     SendMessage( hWndMetronome, CB_ADDSTRING, 0, ( LPARAM )TEXT( "(Off)" ) );
     SendMessage( hWndMetronome, CB_ADDSTRING, 0, ( LPARAM )TEXT( "Every Beat" ) );
     SendMessage( hWndMetronome, CB_ADDSTRING, 0, ( LPARAM )TEXT( "Every Measure" ) );
@@ -763,25 +797,34 @@ HWND CreateRebar( HWND hWndOwner )
                                        468, 2, 1, 25, hWndToolbar, NULL, g_hInstance, NULL );
     HWND hWndStatic5 = CreateWindowEx( 0, WC_STATIC, NULL, WS_CHILD | WS_VISIBLE | SS_WHITEFRAME,
                                        469, 2, 1, 25, hWndToolbar, NULL, g_hInstance, NULL );
-
     HWND hWndStatic6 = CreateWindowEx( 0, WC_STATIC, TEXT( "Playback:" ), WS_CHILD | WS_VISIBLE | SS_LEFT,
                                        477, 8, 44, 13, hWndToolbar, NULL, g_hInstance, NULL );
-    HWND hWndSpeed = CreateWindowEx( 0, TRACKBAR_CLASS, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS,
+    HWND hWndSpeed = CreateWindowEx( 0, TRACKBAR_CLASS, NULL,
+                                     WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS,
                                      522, 2, 100, 26, hWndToolbar, ( HMENU )IDC_SPEED, g_hInstance, NULL );
     SendMessage( hWndSpeed, TBM_SETRANGE, FALSE, MAKELONG( 5, 195 ) );
-    SendMessage( hWndSpeed, TBM_SETLINESIZE, 0, 10 ); 
+    SendMessage( hWndSpeed, TBM_SETLINESIZE, 0, 10 );
 
     HWND hWndStatic7 = CreateWindowEx( 0, WC_STATIC, TEXT( "Notes:" ), WS_CHILD | WS_VISIBLE | SS_LEFT,
                                        629, 8, 35, 13, hWndToolbar, NULL, g_hInstance, NULL );
-    HWND hWndNSpeed = CreateWindowEx( 0, TRACKBAR_CLASS, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS,
+    HWND hWndNSpeed = CreateWindowEx( 0, TRACKBAR_CLASS, NULL,
+                                      WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS,
                                       665, 2, 100, 26, hWndToolbar, ( HMENU )IDC_NSPEED, g_hInstance, NULL );
     SendMessage( hWndNSpeed, TBM_SETRANGE, FALSE, MAKELONG( 5, 195 ) );
-    SendMessage( hWndNSpeed, TBM_SETLINESIZE, 0, 10 ); 
+    SendMessage( hWndNSpeed, TBM_SETLINESIZE, 0, 10 );
 
+    SetLastError( 0 );
     HWND hWndPosn = CreateWindowEx( 0, POSNCLASSNAME, NULL, WS_CHILD | WS_VISIBLE | WS_DISABLED,
-                                    0, 0, 0, 0, hWndRebar, ( HMENU )IDC_POSNCTRL, g_hInstance, NULL );
+                                    0, 0, iInitialBarWidth, iPosnHeight,
+                                    hWndRebar, ( HMENU )IDC_POSNCTRL, g_hInstance, NULL );
+    if ( !hWndPosn )
+    {
+        PFD_LogRebarStage( "FAILED creating position control", GetLastError() );
+        DestroyWindow( hWndRebar );
+        return NULL;
+    }
+    PFD_LogRebarStage( "position control created", 0 );
 
-    // Set the font to the dialog font
     SendMessage( hWndVolume, WM_SETFONT, ( WPARAM )hFont, FALSE );
     SendMessage( hWndStatic1, WM_SETFONT, ( WPARAM )hFont, FALSE );
     SendMessage( hWndStatic2, WM_SETFONT, ( WPARAM )hFont, FALSE );
@@ -792,24 +835,11 @@ HWND CreateRebar( HWND hWndOwner )
     SendMessage( hWndStatic6, WM_SETFONT, ( WPARAM )hFont, FALSE );
     SendMessage( hWndStatic7, WM_SETFONT, ( WPARAM )hFont, FALSE );
     SendMessage( hWndSpeed, WM_SETFONT, ( WPARAM )hFont, FALSE );
+    SendMessage( hWndNSpeed, WM_SETFONT, ( WPARAM )hFont, FALSE );
 
-    // Rebars on Windows 9x are ANSI common controls.  Use the ANSI band
-    // message/structure explicitly instead of letting UNICODE select RB_INSERTBANDW.
-    // Also give each band an explicit width: old common-controls versions do not
-    // reliably infer a useful band width from a child created at 0x0.
-    RECT rcOwnerClient;
-    GetClientRect( hWndOwner, &rcOwnerClient );
-    int iInitialBarWidth = rcOwnerClient.right - rcOwnerClient.left;
-    if ( iInitialBarWidth < 1 ) iInitialBarWidth = 1;
-
-    SetWindowPos( hWndToolbar, NULL, 0, 0, iInitialBarWidth, 31,
-                  SWP_NOZORDER | SWP_NOACTIVATE );
-    SetWindowPos( hWndPosn, NULL, 0, 0, iInitialBarWidth, 20,
-                  SWP_NOZORDER | SWP_NOACTIVATE );
-
-    // Win9x/ME common-controls are ANSI.  NT-family Windows uses the Unicode
-    // rebar window correctly, so use the matching band message for each family.
-    // Forcing RB_INSERTBANDA on an NT Unicode rebar can fail (observed on Win11).
+    // Match the original PianoFromAbove insertion contract.  In particular,
+    // do not put RBBIM_SIZE in the initial RB_INSERTBAND call.  The original
+    // control successfully derives the band width from an already-sized child.
     const bool bWin9x = ( GetVersion() & 0x80000000UL ) != 0;
     BOOL bBandOK = FALSE;
 
@@ -818,82 +848,100 @@ HWND CreateRebar( HWND hWndOwner )
         REBARBANDINFOA rbbi;
         ZeroMemory( &rbbi, sizeof( rbbi ) );
         rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
         rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
+        rbbi.lpText = ( LPSTR )"";
         rbbi.hwndChild = hWndToolbar;
-        rbbi.cxMinChild = 1;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 31;
-        rbbi.cyIntegral = 0;
-        rbbi.cx = iInitialBarWidth;
+        rbbi.cxMinChild = rbbi.cyIntegral = 0;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iToolbarHeight;
         bBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK ) return NULL;
+        if ( !bBandOK )
+        {
+            PFD_LogRebarStage( "FAILED inserting toolbar band (ANSI)", GetLastError() );
+            DestroyWindow( hWndRebar );
+            return NULL;
+        }
+        PFD_LogRebarStage( "toolbar band inserted (ANSI)", 0 );
 
         ZeroMemory( &rbbi, sizeof( rbbi ) );
         rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
         rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
+        rbbi.lpText = ( LPSTR )"";
         rbbi.hwndChild = hWndPosn;
-        rbbi.cxMinChild = 1;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
-        rbbi.cyIntegral = 0;
-        rbbi.cx = iInitialBarWidth;
+        rbbi.cxMinChild = rbbi.cyIntegral = 0;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iPosnHeight;
         bBandOK = ( BOOL )SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK ) return NULL;
+        if ( !bBandOK )
+        {
+            PFD_LogRebarStage( "FAILED inserting position band (ANSI)", GetLastError() );
+            DestroyWindow( hWndRebar );
+            return NULL;
+        }
+        PFD_LogRebarStage( "position band inserted (ANSI)", 0 );
     }
     else
     {
         REBARBANDINFOW rbbi;
+        WCHAR wszEmpty[1] = { 0 };
         ZeroMemory( &rbbi, sizeof( rbbi ) );
         rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
         rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
+        rbbi.lpText = wszEmpty;
         rbbi.hwndChild = hWndToolbar;
-        rbbi.cxMinChild = 1;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 31;
-        rbbi.cyIntegral = 0;
-        rbbi.cx = iInitialBarWidth;
+        rbbi.cxMinChild = rbbi.cyIntegral = 0;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iToolbarHeight;
         bBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK ) return NULL;
+        if ( !bBandOK )
+        {
+            PFD_LogRebarStage( "FAILED inserting toolbar band (Unicode)", GetLastError() );
+            DestroyWindow( hWndRebar );
+            return NULL;
+        }
+        PFD_LogRebarStage( "toolbar band inserted (Unicode)", 0 );
 
         ZeroMemory( &rbbi, sizeof( rbbi ) );
         rbbi.cbSize = sizeof( rbbi );
-        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
+        rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
         rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
+        rbbi.lpText = wszEmpty;
         rbbi.hwndChild = hWndPosn;
-        rbbi.cxMinChild = 1;
-        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
-        rbbi.cyIntegral = 0;
-        rbbi.cx = iInitialBarWidth;
+        rbbi.cxMinChild = rbbi.cyIntegral = 0;
+        rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = iPosnHeight;
         bBandOK = ( BOOL )SendMessageW( hWndRebar, RB_INSERTBANDW, ( WPARAM )-1, ( LPARAM )&rbbi );
-        if ( !bBandOK ) return NULL;
+        if ( !bBandOK )
+        {
+            PFD_LogRebarStage( "FAILED inserting position band (Unicode)", GetLastError() );
+            DestroyWindow( hWndRebar );
+            return NULL;
+        }
+        PFD_LogRebarStage( "position band inserted (Unicode)", 0 );
     }
 
-    // Give the rebar a real initial size before SizeWindows reads its height.
-    // There is no RB_AUTOSIZE message on the Win98-era common-controls API;
-    // resizing the rebar causes it to lay out its bands and children.
-    int iInitialBarHeight = 51; // 31px toolbar band + 20px position band
     SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iInitialBarHeight,
                   SWP_NOZORDER | SWP_NOACTIVATE );
     SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
     int iReportedBarHeight = ( int )SendMessage( hWndRebar, RB_GETBARHEIGHT, 0, 0 );
-    if ( iReportedBarHeight > 0 && iReportedBarHeight != iInitialBarHeight )
-        SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iReportedBarHeight,
-                      SWP_NOZORDER | SWP_NOACTIVATE );
+    if ( iReportedBarHeight <= 0 ) iReportedBarHeight = iInitialBarHeight;
+    SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iReportedBarHeight,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
+
     ShowWindow( hWndToolbar, SW_SHOWNA );
     ShowWindow( hWndPosn, SW_SHOWNA );
     ShowWindow( hWndRebar, SW_SHOWNA );
 
-    // Now that the controls are created and set up, fill out the default values
     Config &config = Config::GetConfig();
     const PlaybackSettings &cPlayback = config.GetPlaybackSettings();
-    g_hWndBar = hWndRebar; // SetMute needs it :/
+    g_hWndBar = hWndRebar;
     SetLearnMode( cPlayback.GetLearnMode() );
     SetMute( cPlayback.GetMute() );
     SendMessage( hWndSpeed, TBM_SETPOS, TRUE, ( LONG )( 100 * cPlayback.GetSpeed() + .5 ) );
-    SendMessage( hWndNSpeed, TBM_SETPOS, TRUE, ( LONG )( 100 * (2.0 - cPlayback.GetNSpeed()) + .5 ) );
+    SendMessage( hWndNSpeed, TBM_SETPOS, TRUE, ( LONG )( 100 * ( 2.0 - cPlayback.GetNSpeed() ) + .5 ) );
     SendMessage( hWndVolume, TBM_SETPOS, TRUE, ( LONG )( 100 * cPlayback.GetVolume() + .5 ) );
     SendMessage( hWndMetronome, CB_SETCURSEL, cPlayback.GetMetronome(), 0 );
 
+    PFD_LogRebarStage( "CreateRebar completed", 0 );
     return hWndRebar;
 }
 
