@@ -9,7 +9,7 @@
 *************************************************************************************************/
 #pragma once
 
-#include <windows.h>
+#include <Windows.h>
 #include <vector>
 #include <string>
 using namespace std;
@@ -183,6 +183,7 @@ public:
     //Event types
     enum EventType { ChannelEvent, MetaEvent, SysExEvent, RunningStatus };
     static EventType DecodeEventType( int iEventCode );
+    virtual ~MIDIEvent() { }
 
     //Parsing functions that load data into the instance
     static int MakeNextEvent( const unsigned char *pcData, int iMaxSize, int iTrack, MIDIEvent **pOutEvent );

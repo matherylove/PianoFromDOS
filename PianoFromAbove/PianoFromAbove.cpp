@@ -41,6 +41,45 @@ void PFD_StartupLogA( const char *text )
     if ( g_hStartupLog == INVALID_HANDLE_VALUE || !text ) return;
     DWORD written = 0;
     WriteFile( g_hStartupLog, text, ( DWORD )lstrlenA( text ), &written, NULL );
+    FlushFileBuffers( g_hStartupLog );
+}
+
+static LONG WINAPI PFD_UnhandledExceptionFilter( EXCEPTION_POINTERS *pExceptionInfo )
+{
+    char line[512];
+    DWORD code = 0;
+    DWORD address = 0;
+
+    if ( pExceptionInfo && pExceptionInfo->ExceptionRecord )
+    {
+        code = pExceptionInfo->ExceptionRecord->ExceptionCode;
+        address = ( DWORD )( ULONG_PTR )pExceptionInfo->ExceptionRecord->ExceptionAddress;
+    }
+
+    wsprintfA( line,
+               "UNHANDLED EXCEPTION: code=0x%08lX address=0x%08lX\r\n",
+               ( unsigned long )code, ( unsigned long )address );
+    PFD_StartupLogA( line );
+
+#if defined(_M_IX86) || defined(__i386__)
+    if ( pExceptionInfo && pExceptionInfo->ContextRecord )
+    {
+        CONTEXT *ctx = pExceptionInfo->ContextRecord;
+        wsprintfA( line,
+                   "REGISTERS: EIP=%08lX ESP=%08lX EBP=%08lX EAX=%08lX EBX=%08lX ECX=%08lX EDX=%08lX ESI=%08lX EDI=%08lX\r\n",
+                   ( unsigned long )ctx->Eip, ( unsigned long )ctx->Esp,
+                   ( unsigned long )ctx->Ebp, ( unsigned long )ctx->Eax,
+                   ( unsigned long )ctx->Ebx, ( unsigned long )ctx->Ecx,
+                   ( unsigned long )ctx->Edx, ( unsigned long )ctx->Esi,
+                   ( unsigned long )ctx->Edi );
+        PFD_StartupLogA( line );
+    }
+#endif
+
+    MessageBoxA( NULL,
+                 "PianoFromDOS encountered an unhandled exception.\r\n\r\nDetails were written to PianoFromDOS-startup.log.",
+                 "PianoFromDOS crash", MB_OK | MB_ICONERROR );
+    return EXCEPTION_EXECUTE_HANDLER;
 }
 
 static int PFD_StartupFailA( const char *stage, DWORD errorCode )
@@ -127,6 +166,8 @@ INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdL
     g_hStartupLog = CreateFileA( "PianoFromDOS-startup.log", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
     PFD_StartupLogA( "PianoFromDOS entered WinMain.\r\n" );
+    SetUnhandledExceptionFilter( PFD_UnhandledExceptionFilter );
+    PFD_StartupLogA( "Unhandled exception filter installed.\r\n" );
 
     if ( PFD_IsWin9x() )
     {

@@ -36,23 +36,31 @@ GameState::GameError GameState::ChangeState( GameState *pNextState, GameState **
     if (!pDestObj )
         return BadPointer;
 
+    PFD_StartupLogA( "ChangeState: entered.\r\n" );
+
     // Get rid of the old one. Carry over new window/renderer if needed
     if ( *pDestObj )
     {
         if ( !pNextState->m_hWnd ) pNextState->m_hWnd = ( *pDestObj )->m_hWnd;
         if ( !pNextState->m_pRenderer ) pNextState->m_pRenderer = ( *pDestObj )->m_pRenderer;
+        PFD_StartupLogA( "ChangeState: deleting old state.\r\n" );
         delete *pDestObj;
+        PFD_StartupLogA( "ChangeState: old state deleted.\r\n" );
     }
     *pDestObj = pNextState;
+    PFD_StartupLogA( "ChangeState: initializing new state.\r\n" );
     GameError iResult = pNextState->Init();
+    PFD_StartupLogA( "ChangeState: new state Init returned.\r\n" );
     if ( iResult )
     {
+        PFD_StartupLogA( "ChangeState: Init failed; creating IntroScreen fallback.\r\n" );
         *pDestObj = new IntroScreen( pNextState->m_hWnd, pNextState->m_pRenderer );
         delete pNextState;
         ( *pDestObj )->Init();
         return iResult;
     }
 
+    PFD_StartupLogA( "ChangeState: completed successfully.\r\n" );
     return Success;
 }
 
