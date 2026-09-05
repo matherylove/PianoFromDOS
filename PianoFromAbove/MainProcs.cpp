@@ -368,6 +368,11 @@ VOID SizeWindows( int iMainWidth, int iMainHeight )
         RECT rcBarDlg;
         GetWindowRect( g_hWndBar, &rcBarDlg );
         iBarHeight = rcBarDlg.bottom - rcBarDlg.top;
+        if ( !iBarHeight )
+        {
+            iBarHeight = ( int )SendMessage( g_hWndBar, RB_GETBARHEIGHT, 0, 0 );
+            if ( !iBarHeight ) iBarHeight = 51;
+        }
         if ( hdwp ) hdwp = DeferWindowPos( hdwp, g_hWndBar, NULL, 0, 0, iMainWidth, iBarHeight, swpFlags );
     }
     if ( cView.GetFullScreen() && !cVisual.bAlwaysShowControls ) iBarHeight = 0;
@@ -691,7 +696,7 @@ HWND CreateRebar( HWND hWndOwner )
 {
     // Create the Rebar. Just houses the toolbar.
     HWND hWndRebar = CreateWindowEx( WS_EX_CONTROLPARENT, REBARCLASSNAME, NULL, 
-        WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CCS_NODIVIDER | RBS_VARHEIGHT,
+        WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CCS_NODIVIDER | RBS_VARHEIGHT,
         0, 0, 0, 0, hWndOwner, ( HMENU )IDC_TOPREBAR, g_hInstance, NULL );
     if( !hWndRebar ) return NULL;
 
@@ -709,7 +714,7 @@ HWND CreateRebar( HWND hWndOwner )
 
     // Create the toolbar. Houses custom controls too. Don't want multiple rebar brands because you lose too much control
     HWND hWndToolbar = CreateWindowEx( WS_EX_CONTROLPARENT, TOOLBARCLASSNAME, NULL, 
-                                       WS_CHILD | WS_TABSTOP | CCS_NODIVIDER | CCS_NOPARENTALIGN | CCS_NORESIZE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS,
+                                       WS_CHILD | WS_VISIBLE | WS_TABSTOP | CCS_NODIVIDER | CCS_NOPARENTALIGN | CCS_NORESIZE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS,
                                        0, 0, 0, 0, hWndRebar, ( HMENU )IDC_TOPTOOLBAR, g_hInstance, NULL);
     if (hWndToolbar == NULL)
         return NULL;
@@ -733,6 +738,7 @@ HWND CreateRebar( HWND hWndOwner )
     SendMessage( hWndToolbar, TB_BUTTONSTRUCTSIZE, sizeof( TBBUTTON ), 0 );
     SendMessage( hWndToolbar, TB_ADDBUTTONS, sizeof( tbButtons ) / sizeof( TBBUTTON ), ( LPARAM )&tbButtons );
     SendMessage( hWndToolbar, TB_SETBUTTONSIZE, 0, MAKELONG( 32, 29 ) );
+    SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
 
     // Now add the other controls
     HWND hWndVolume = CreateWindowEx( 0, TRACKBAR_CLASS, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_BOTH | TBS_NOTICKS | TBS_TOOLTIPS,
@@ -803,6 +809,13 @@ HWND CreateRebar( HWND hWndOwner )
     rbbi.hwndChild = hWndPosn;
     rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
     SendMessage( hWndRebar, RB_INSERTBAND, -1, (LPARAM)&rbbi );
+
+    // Force the rebar/toolbar to calculate a non-zero initial layout before SizeWindows reads its height.
+    SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
+    SendMessage( hWndRebar, RB_AUTOSIZE, 0, 0 );
+    ShowWindow( hWndToolbar, SW_SHOWNA );
+    ShowWindow( hWndPosn, SW_SHOWNA );
+    ShowWindow( hWndRebar, SW_SHOWNA );
 
     // Now that the controls are created and set up, fill out the default values
     Config &config = Config::GetConfig();
