@@ -228,7 +228,12 @@ jobs:
           file "$exe" | grep -Eqi 'PE32 executable.*Intel 80386|PE32 executable.*Intel i386'
           "$PFD_OBJDUMP" -p "$exe" > build-win98/package/PE-IMPORTS.txt
           grep -E 'DLL Name:' build-win98/package/PE-IMPORTS.txt || true
-          grep -Eqi 'DLL Name:.*d3dx9_30\.dll' build-win98/package/PE-IMPORTS.txt
+          grep -Eq '^MajorOSystemVersion[[:space:]]+4$|^MajorOperatingSystemVersion[[:space:]]+4$' build-win98/package/PE-IMPORTS.txt || true
+          grep -Eq '^MajorSubsystemVersion[[:space:]]+4$' build-win98/package/PE-IMPORTS.txt
+          if grep -Eqi 'DLL Name:.*(d3d9|d3dx9_[0-9]+)\.dll' build-win98/package/PE-IMPORTS.txt; then
+            echo "DirectX DLLs must be loaded dynamically so Win9x can report missing runtimes after startup" >&2
+            exit 1
+          fi
           if grep -Eqi 'DLL Name:.*(d3dx9_43|ucrtbase|api-ms-win|libstdc\+\+|libgcc_s|libwinpthread).*\.dll' build-win98/package/PE-IMPORTS.txt; then
             echo "Unexpected modern runtime DLL dependency detected" >&2
             exit 1
