@@ -13,6 +13,7 @@ env:
   MINGW_LITE_ARCHIVE: x-mingw32_686-msvcrt_win98-16.2.0-r1.tar.zst
   MINGW_LITE_SHA256: a7499239d900ea4efe74df7dbd0db0c5c14abbd5980c0d324aa90cd2391a9879
   LIBUNICOWS_COMMIT: 394c41a69ae54d74886a387a1bebaf59c0b95222
+  PFD_WORKFLOW_REVISION: win98-overlay-v4
 
 jobs:
   build-win98:
@@ -38,62 +39,92 @@ jobs:
           mkdir -p "$RUNNER_TEMP/mingw-win98"
           tar --zstd -xf "$RUNNER_TEMP/$MINGW_LITE_ARCHIVE" -C "$RUNNER_TEMP/mingw-win98"
 
-      - name: Locate cross compiler and binutils
+      - name: Assemble mingw-lite cross-toolchain
         shell: bash
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/mingw-win98"
 
-          # mingw-lite's cross archives are assembled from multiple build stages.
-          # GCC can live under AAB/gcc/... while target binutils live elsewhere, so
-          # never assume that gcc/g++/ar/windres share one directory.
-          cxx="$(find "$root" \( -type f -o -type l \) -name '*-g++' -print -quit)"
+          # mingw-lite cross archives are package layers, not a relocatable flat
+          # prefix.  GCC is configured for /usr/local, so the official way to
+          # use the cross archive is to overlay the required AAB package layers
+          # onto /usr/local.  Running AAB/gcc/usr/local/bin/gcc directly leaves
+          # headers/CRT in sibling layers invisible (e.g. windows.h not found).
+          aab="$(find "$root" -type d -name AAB -print -quit)"
+          if [[ -z "$aab" || ! -d "$aab" ]]; then
+            echo "Could not find the mingw-lite AAB package directory under $root" >&2
+            find "$root" -maxdepth 4 -type d | sed -n '1,240p' >&2
+            exit 1
+          fi
+
+          packages=(
+            binutils
+            crt-target
+            gcc
+            gcc-lib
+            headers
+            mcfgthread
+            winpthreads
+          )
+
+          layers=()
+          for package in "${packages[@]}"; do
+            layer="$aab/$package/usr/local"
+            if [[ ! -d "$layer" ]]; then
+              echo "Missing required mingw-lite layer: $layer" >&2
+              echo "Available AAB packages:" >&2
+              find "$aab" -mindepth 1 -maxdepth 1 -type d -printf '  %f\n' | sort >&2
+              exit 1
+            fi
+            layers+=("$layer")
+          done
+
+          lowerdir="$(IFS=:; echo "${layers[*]}")"
+          echo "Mounting mingw-lite package overlay on /usr/local"
+          printf '  %s\n' "${layers[@]}"
+
+          # The release README explicitly requires the cross packages to be
+          # mounted at /usr/local. GitHub-hosted Ubuntu runners permit sudo.
+          if mountpoint -q /usr/local; then
+            echo "/usr/local is unexpectedly already a mount point" >&2
+            findmnt /usr/local >&2 || true
+            exit 1
+          fi
+          sudo mount -t overlay mingw-lite-win98 /usr/local -o "lowerdir=$lowerdir"
+          mountpoint -q /usr/local
+
+          cxx="$(find /usr/local/bin -maxdepth 1 -type f -o -type l 2>/dev/null | grep -E '/[^/]+-g\+\+$' | head -n1 || true)"
           if [[ -z "$cxx" || ! -x "$cxx" ]]; then
-            echo "Could not find an executable cross g++ in $root" >&2
-            find "$root" -type f -o -type l | sed -n '1,240p'
+            echo "Could not find cross g++ after assembling /usr/local" >&2
+            find /usr/local/bin -maxdepth 1 -type f -o -type l 2>/dev/null | sort >&2 || true
             exit 1
           fi
 
           triplet="$(basename "$cxx")"
           triplet="${triplet%-g++}"
+          echo "Workflow revision: $PFD_WORKFLOW_REVISION"
           echo "Detected target triplet: $triplet"
 
-          find_tool() {
-            local tool="$1"
-            local candidate=""
-
-            # Prefer the canonical target-prefixed spelling anywhere in the archive.
-            candidate="$(find "$root" \( -type f -o -type l \) -path '*/usr/local/bin/*' -name "${triplet}-${tool}" -print -quit)"
-            if [[ -z "$candidate" ]]; then
-              candidate="$(find "$root" \( -type f -o -type l \) -name "${triplet}-${tool}" -print -quit)"
-            fi
-
-            # GCC also ships plugin-aware wrappers named gcc-ar/gcc-ranlib.
-            if [[ -z "$candidate" && "$tool" == "ar" ]]; then
-              candidate="$(find "$root" \( -type f -o -type l \) -name "${triplet}-gcc-ar" -print -quit)"
-            elif [[ -z "$candidate" && "$tool" == "ranlib" ]]; then
-              candidate="$(find "$root" \( -type f -o -type l \) -name "${triplet}-gcc-ranlib" -print -quit)"
-            fi
-
-            if [[ -z "$candidate" || ! -x "$candidate" ]]; then
-              echo "Could not find executable tool for ${triplet}-${tool}" >&2
-              echo "Candidates containing '${tool}':" >&2
-              find "$root" \( -type f -o -type l \) -iname "*${tool}*" -print | sed -n '1,120p' >&2
+          tool() {
+            local name="$1"
+            local path="/usr/local/bin/${triplet}-${name}"
+            if [[ ! -x "$path" ]]; then
+              echo "Missing assembled tool: $path" >&2
               return 1
             fi
-
-            printf '%s\n' "$candidate"
+            printf '%s\n' "$path"
           }
 
-          cc="$(find_tool gcc)"
-          ar="$(find_tool ar)"
-          ranlib="$(find_tool ranlib)"
-          strip="$(find_tool strip)"
-          windres="$(find_tool windres)"
-          objdump="$(find_tool objdump)"
-          ld="$(find_tool ld)"
+          cc="$(tool gcc)"
+          ar="$(tool ar)"
+          ranlib="$(tool ranlib)"
+          strip="$(tool strip)"
+          windres="$(tool windres)"
+          objdump="$(tool objdump)"
+          ld="$(tool ld)"
 
           {
+            echo "PFD_TRIPLET=$triplet"
             echo "PFD_CC=$cc"
             echo "PFD_CXX=$cxx"
             echo "PFD_AR=$ar"
@@ -102,9 +133,10 @@ jobs:
             echo "PFD_WINDRES=$windres"
             echo "PFD_OBJDUMP=$objdump"
             echo "PFD_LD=$ld"
+            echo "PFD_MINGW_OVERLAY_MOUNTED=1"
           } >> "$GITHUB_ENV"
 
-          echo "Resolved tools:"
+          echo "Resolved assembled tools:"
           printf '  CC      %s\n' "$cc"
           printf '  CXX     %s\n' "$cxx"
           printf '  AR      %s\n' "$ar"
@@ -113,16 +145,42 @@ jobs:
           printf '  WINDRES %s\n' "$windres"
           printf '  OBJDUMP %s\n' "$objdump"
           printf '  LD      %s\n' "$ld"
-          "$cxx" --version
+
+          "$cc" -v 2>&1 | tee "$RUNNER_TEMP/mingw-gcc-info.txt"
+          printf '#include <windows.h>\nint main(void) { return 0; }\n' > "$RUNNER_TEMP/win98-header-smoke.c"
+          "$cc" -c "$RUNNER_TEMP/win98-header-smoke.c" -o "$RUNNER_TEMP/win98-header-smoke.o"
+          test -s "$RUNNER_TEMP/win98-header-smoke.o"
 
       - name: Build libunicows import library
         shell: bash
         run: |
           set -euo pipefail
+          echo "Workflow revision: $PFD_WORKFLOW_REVISION"
+
+          expected_cc="/usr/local/bin/${PFD_TRIPLET}-gcc"
+          if [[ "$PFD_CC" != "$expected_cc" ]]; then
+            echo "Refusing stale/unassembled MinGW compiler path." >&2
+            echo "PFD_CC=$PFD_CC" >&2
+            echo "Expected=$expected_cc" >&2
+            exit 1
+          fi
+          if [[ "$PFD_CC" == *'/AAB/gcc/'* ]]; then
+            echo "Refusing GCC from an individual mingw-lite package layer: $PFD_CC" >&2
+            exit 1
+          fi
+          test -x "$expected_cc"
+          mountpoint -q /usr/local
+
+          # Re-check the assembled SDK immediately before libunicows so this
+          # step can never silently fall back to a compiler from AAB/gcc.
+          printf '#include <windows.h>\nint pfd_header_check(void) { return 0; }\n' > "$RUNNER_TEMP/libunicows-header-check.c"
+          "$expected_cc" -c "$RUNNER_TEMP/libunicows-header-check.c" -o "$RUNNER_TEMP/libunicows-header-check.o"
+          test -s "$RUNNER_TEMP/libunicows-header-check.o"
+
           git clone --filter=blob:none https://github.com/ComputerNerd/Libunicows.git "$RUNNER_TEMP/libunicows"
           git -C "$RUNNER_TEMP/libunicows" checkout --detach "$LIBUNICOWS_COMMIT"
           make -C "$RUNNER_TEMP/libunicows/src" -f makefile.mingw32 \
-            CC="$PFD_CC" \
+            CC="$expected_cc" \
             LD="$PFD_LD" \
             AR="$PFD_AR" \
             RANLIB="$PFD_RANLIB" \
@@ -180,6 +238,14 @@ jobs:
         shell: bash
         run: |
           "$PFD_STRIP" build-win98/package/PianoFromDOS.exe
+
+      - name: Unmount mingw-lite overlay
+        if: always()
+        shell: bash
+        run: |
+          if mountpoint -q /usr/local; then
+            sudo umount /usr/local
+          fi
 
       - name: Upload Windows 98 artifact
         uses: actions/upload-artifact@v4
