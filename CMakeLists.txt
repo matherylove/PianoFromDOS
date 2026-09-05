@@ -70,9 +70,9 @@ if(NOT PFD_UNICOWS_LIBRARY OR NOT EXISTS "${PFD_UNICOWS_LIBRARY}")
     message(FATAL_ERROR "PFD_UNICOWS_LIBRARY must point to the built libunicows.a")
 endif()
 
-# D3DX9_30 belongs to the Win98-capable DirectX 9.0c generation.  Use the
-# target compiler's own import-library search path; CI verifies the final PE
-# imports d3dx9_30.dll and never silently accepts a newer d3dx9 runtime.
+# Direct3D 9 and D3DX9_30 are loaded dynamically at runtime. This prevents
+# a missing DirectX component from killing the process before WinMain can show
+# a useful error on Windows 98/ME.
 
 # Static GCC/libstdc++ removes modern runtime DLL dependencies from the artifact.
 target_link_options(PianoFromDOS PRIVATE
@@ -80,12 +80,14 @@ target_link_options(PianoFromDOS PRIVATE
     -static-libgcc
     -static-libstdc++
     -mwindows
+    -Wl,--major-os-version,4
+    -Wl,--minor-os-version,0
+    -Wl,--major-subsystem-version,4
+    -Wl,--minor-subsystem-version,0
 )
 
 target_link_libraries(PianoFromDOS PRIVATE
     "${PFD_UNICOWS_LIBRARY}"
-    d3d9
-    d3dx9_30
     winmm
     comctl32
     advapi32

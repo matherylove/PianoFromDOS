@@ -9,6 +9,64 @@
 *************************************************************************************************/
 #include "Renderer.h"
 
+namespace
+{
+    typedef IDirect3D9* ( WINAPI *PFD_Direct3DCreate9Fn )( UINT );
+    typedef HRESULT ( WINAPI *PFD_D3DXCreateSpriteFn )( LPDIRECT3DDEVICE9, LPD3DXSPRITE* );
+    typedef HRESULT ( WINAPI *PFD_D3DXCreateFontAFn )( LPDIRECT3DDEVICE9, INT, UINT, UINT, UINT, BOOL, DWORD, DWORD, DWORD, DWORD, LPCSTR, LPD3DXFONT* );
+
+    static HMODULE g_hD3D9 = NULL;
+    static HMODULE g_hD3DX9 = NULL;
+    static PFD_Direct3DCreate9Fn g_pDirect3DCreate9 = NULL;
+    static PFD_D3DXCreateSpriteFn g_pD3DXCreateSprite = NULL;
+    static PFD_D3DXCreateFontAFn g_pD3DXCreateFontA = NULL;
+
+    static HRESULT PFD_LoadDirectXRuntimes( HWND hWnd )
+    {
+        if ( !g_hD3D9 )
+        {
+            g_hD3D9 = LoadLibraryA( "d3d9.dll" );
+            if ( !g_hD3D9 )
+            {
+                MessageBoxA( hWnd,
+                             "PianoFromDOS could not load D3D9.DLL.\r\n\r\nInstall DirectX 9.0c for Windows 98/ME.",
+                             "PianoFromDOS - DirectX 9 required", MB_OK | MB_ICONERROR );
+                return HRESULT_FROM_WIN32( ERROR_MOD_NOT_FOUND );
+            }
+            g_pDirect3DCreate9 = reinterpret_cast< PFD_Direct3DCreate9Fn >( GetProcAddress( g_hD3D9, "Direct3DCreate9" ) );
+            if ( !g_pDirect3DCreate9 )
+            {
+                MessageBoxA( hWnd, "D3D9.DLL does not export Direct3DCreate9.",
+                             "PianoFromDOS - incompatible DirectX", MB_OK | MB_ICONERROR );
+                return HRESULT_FROM_WIN32( ERROR_PROC_NOT_FOUND );
+            }
+        }
+
+        if ( !g_hD3DX9 )
+        {
+            g_hD3DX9 = LoadLibraryA( "d3dx9_30.dll" );
+            if ( !g_hD3DX9 )
+            {
+                MessageBoxA( hWnd,
+                             "PianoFromDOS could not load D3DX9_30.DLL.\r\n\r\n"
+                             "Install the April 2006 DirectX 9.0c D3DX runtime, or place D3DX9_30.DLL next to PianoFromDOS.exe.",
+                             "PianoFromDOS - D3DX9_30.DLL required", MB_OK | MB_ICONERROR );
+                return HRESULT_FROM_WIN32( ERROR_MOD_NOT_FOUND );
+            }
+            g_pD3DXCreateSprite = reinterpret_cast< PFD_D3DXCreateSpriteFn >( GetProcAddress( g_hD3DX9, "D3DXCreateSprite" ) );
+            g_pD3DXCreateFontA = reinterpret_cast< PFD_D3DXCreateFontAFn >( GetProcAddress( g_hD3DX9, "D3DXCreateFontA" ) );
+            if ( !g_pD3DXCreateSprite || !g_pD3DXCreateFontA )
+            {
+                MessageBoxA( hWnd, "D3DX9_30.DLL is present but does not provide the required D3DX entry points.",
+                             "PianoFromDOS - incompatible D3DX", MB_OK | MB_ICONERROR );
+                return HRESULT_FROM_WIN32( ERROR_PROC_NOT_FOUND );
+            }
+        }
+
+        return S_OK;
+    }
+}
+
 HRESULT Renderer::SetLimitFPS( bool bLimitFPS )
 {
     if ( bLimitFPS != m_bLimitFPS )
@@ -54,8 +112,11 @@ HRESULT D3D9Renderer::Init( HWND hWnd, bool bLimitFPS )
 {
     HRESULT hr;
 
+    if ( FAILED( hr = PFD_LoadDirectXRuntimes( hWnd ) ) )
+        return hr;
+
     // Create the D3D object.
-    if( NULL == ( m_pD3D = Direct3DCreate9( D3D_SDK_VERSION ) ) )
+    if( NULL == ( m_pD3D = g_pDirect3DCreate9( D3D_SDK_VERSION ) ) )
         return E_FAIL;
 
     // Set up the structure used to create the D3DDevice
@@ -73,30 +134,30 @@ HRESULT D3D9Renderer::Init( HWND hWnd, bool bLimitFPS )
                                            &m_d3dPP, &m_pd3dDevice ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateSprite( m_pd3dDevice, &m_pTextSprite ) ) )
+    if( FAILED( hr = g_pD3DXCreateSprite( m_pd3dDevice, &m_pTextSprite ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 15, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 15, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
                                       OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                       "Tahoma", &m_pSmallFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
                                       OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                       "Tahoma", &m_pSmallBoldFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 20, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 20, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
                                       OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                       "Comic Sans MS", &m_pSmallComicFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 25, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 25, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
                                       OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                       "Tahoma", &m_pMediumFont ) ) )
         return hr;
 
-    if( FAILED( hr = D3DXCreateFontA( m_pd3dDevice, 35, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+    if( FAILED( hr = g_pD3DXCreateFontA( m_pd3dDevice, 35, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
                                       OUT_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                                       "Tahoma", &m_pLargeFont ) ) )
         return hr;
