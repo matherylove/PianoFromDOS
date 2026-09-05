@@ -14,6 +14,8 @@
 #include "Globals.h"
 #include "GameState.h"
 #include "Config.h"
+
+extern void PFD_StartupLogA( const char *text );
 #include "resource.h"
 
 const wstring GameState::Errors[] =
@@ -681,9 +683,14 @@ void MainScreen::InitLearning( bool bResetMinTime )
 // Called immediately before changing to this state
 GameState::GameError MainScreen::Init()
 {
+    PFD_StartupLogA( "MainScreen::Init entered.\r\n" );
     static const AudioSettings &cAudio = Config::GetConfig().GetAudioSettings();
     if ( cAudio.iOutDevice >= 0 )
+    {
+        PFD_StartupLogA( "MainScreen::Init opening MIDI output.\r\n" );
         m_OutDevice.Open( cAudio.iOutDevice );
+        PFD_StartupLogA( "MainScreen::Init MIDI output open returned.\r\n" );
+    }
     if ( cAudio.iInDevice >= 0 )
     {
         if ( !m_InDevice.Open( cAudio.iInDevice ) && m_eGameMode != Practice )
@@ -692,8 +699,12 @@ GameState::GameError MainScreen::Init()
     else if ( m_eGameMode != Practice )
         return NoInputDevice;
 
-    m_OutDevice.SetVolume( 1.0 );
+    PFD_StartupLogA( "MainScreen::Init setting MIDI output volume.\r\n" );
+    if ( m_OutDevice.IsOpen() )
+        m_OutDevice.SetVolume( 1.0 );
+    PFD_StartupLogA( "MainScreen::Init calling NextTrack.\r\n" );
     NextTrack(); // Called here so settings don't get overwritten
+    PFD_StartupLogA( "MainScreen::Init completed.\r\n" );
     return Success;
 }
 

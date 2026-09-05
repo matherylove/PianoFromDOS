@@ -64,48 +64,49 @@ static bool PFD_IsWin9x()
 
 static HANDLE PFD_CreateGameThread( LPVOID lpParameter )
 {
-    // Win9x reserves/commits thread stacks differently from NT.  A zero stack
-    // size inherits the PE default and can fail on memory-constrained Win9x
-    // systems even though the process itself has already started successfully.
-    // Try conservative explicit sizes there.  NT keeps the normal default.
-    if ( !PFD_IsWin9x() )
+    // Windows 95/98/ME require lpThreadId to be non-NULL.  The previous
+    // compatibility workaround also forced a 256 KiB stack, but that was not
+    // the cause of ERROR_INVALID_PARAMETER and is too small for the full game
+    // state/rendering path.  Use the PE/default stack on every platform.
+    DWORD threadId = 0;
+    SetLastError( ERROR_SUCCESS );
+    HANDLE hThread = CreateThread( NULL, 0, GameThread, lpParameter, 0,
+                                   PFD_IsWin9x() ? &threadId : NULL );
+    if ( hThread )
     {
-        SetLastError( ERROR_SUCCESS );
-        HANDLE hThread = CreateThread( NULL, 0, GameThread, lpParameter, 0, NULL );
-        if ( !hThread )
-        {
-            char line[192];
-            wsprintfA( line, "CreateThread(default stack) failed (Win32 error %lu).\r\n",
-                       ( unsigned long )GetLastError() );
-            PFD_StartupLogA( line );
-        }
+        char line[192];
+        if ( PFD_IsWin9x() )
+            wsprintfA( line, "Game thread created with default stack (thread id %lu).\r\n",
+                       ( unsigned long )threadId );
+        else
+            lstrcpyA( line, "Game thread created with default stack.\r\n" );
+        PFD_StartupLogA( line );
         return hThread;
     }
 
-    const DWORD stackSizes[] = { 256UL * 1024UL, 128UL * 1024UL, 64UL * 1024UL };
-    DWORD lastThreadError = ERROR_SUCCESS;
-    for ( int i = 0; i < ( int )( sizeof( stackSizes ) / sizeof( stackSizes[0] ) ); ++i )
+    DWORD lastThreadError = GetLastError();
+    char line[192];
+    wsprintfA( line, "CreateThread(default stack) failed (Win32 error %lu).\r\n",
+               ( unsigned long )lastThreadError );
+    PFD_StartupLogA( line );
+
+    // Last-resort Win9x fallback only.  Keep it much larger than the old
+    // 64/128/256 KiB values to avoid stack exhaustion during song loading.
+    if ( PFD_IsWin9x() )
     {
-        // Windows 95/98/ME require a valid lpThreadId pointer.  Passing NULL,
-        // although accepted by NT-family Windows, returns ERROR_INVALID_PARAMETER
-        // (87) on Win9x.
-        DWORD threadId = 0;
+        const DWORD fallbackStack = 1024UL * 1024UL;
+        threadId = 0;
         SetLastError( ERROR_SUCCESS );
-        HANDLE hThread = CreateThread( NULL, stackSizes[i], GameThread, lpParameter, 0, &threadId );
+        hThread = CreateThread( NULL, fallbackStack, GameThread, lpParameter, 0, &threadId );
         if ( hThread )
         {
-            char line[192];
-            wsprintfA( line, "Game thread created with %lu KiB stack (thread id %lu).\r\n",
-                       ( unsigned long )( stackSizes[i] / 1024UL ),
+            wsprintfA( line, "Game thread created with 1024 KiB fallback stack (thread id %lu).\r\n",
                        ( unsigned long )threadId );
             PFD_StartupLogA( line );
             return hThread;
         }
-
         lastThreadError = GetLastError();
-        char line[192];
-        wsprintfA( line, "CreateThread(%lu KiB stack) failed (Win32 error %lu).\r\n",
-                   ( unsigned long )( stackSizes[i] / 1024UL ),
+        wsprintfA( line, "CreateThread(1024 KiB fallback stack) failed (Win32 error %lu).\r\n",
                    ( unsigned long )lastThreadError );
         PFD_StartupLogA( line );
     }
@@ -298,6 +299,7 @@ INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdL
 
 DWORD WINAPI GameThread( LPVOID lpParameter )
 {
+    PFD_StartupLogA( "GameThread entered.\r\n" );
     if ( !g_hWndGfx ) return 0;
 
     // Initialize Direct3D
@@ -316,11 +318,14 @@ DWORD WINAPI GameThread( LPVOID lpParameter )
         return 1;
     }
 
+    PFD_StartupLogA( "GameThread renderer initialized.\r\n" );
+
     // Create the game object
     GameState *pGameState = reinterpret_cast< GameState* >( lpParameter );
     pGameState->SetHWnd( g_hWndGfx );
     pGameState->SetRenderer( pRenderer );
     pGameState->Init();
+    PFD_StartupLogA( "GameThread initial state initialized.\r\n" );
     GameState::GameError ge;
 
     // Event, logic, render...
@@ -328,10 +333,19 @@ DWORD WINAPI GameThread( LPVOID lpParameter )
     while( msg.message != WM_QUIT )
     {
         while ( g_MsgQueue.Pop( msg ) )
+        {
+            if ( msg.message == WM_COMMAND && LOWORD( msg.wParam ) == ID_CHANGESTATE )
+                PFD_StartupLogA( "GameThread received ID_CHANGESTATE.\r\n" );
             pGameState->MsgProc( msg.hwnd, msg.message, msg.wParam, msg.lParam );
+        }
 
+        const bool bChangingState = ( pGameState->NextState() != NULL );
+        if ( bChangingState )
+            PFD_StartupLogA( "GameThread beginning state change.\r\n" );
         if ( ( ge = GameState::ChangeState( pGameState->NextState(), &pGameState ) ) != GameState::Success )
             PostMessage( g_hWnd, WM_COMMAND, ID_GAMEERROR, ge );
+        else if ( bChangingState )
+            PFD_StartupLogA( "GameThread state change completed.\r\n" );
         pGameState->Logic();
         pGameState->Render();
     }
