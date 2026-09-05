@@ -793,29 +793,50 @@ HWND CreateRebar( HWND hWndOwner )
     SendMessage( hWndStatic7, WM_SETFONT, ( WPARAM )hFont, FALSE );
     SendMessage( hWndSpeed, WM_SETFONT, ( WPARAM )hFont, FALSE );
 
-    REBARBANDINFO rbbi;
-    rbbi.cbSize = sizeof(REBARBANDINFO);
-    rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
+    // Rebars on Windows 9x are ANSI common controls.  Use the ANSI band
+    // message/structure explicitly instead of letting UNICODE select RB_INSERTBANDW.
+    // Also give each band an explicit width: old common-controls versions do not
+    // reliably infer a useful band width from a child created at 0x0.
+    RECT rcOwnerClient;
+    GetClientRect( hWndOwner, &rcOwnerClient );
+    int iInitialBarWidth = rcOwnerClient.right - rcOwnerClient.left;
+    if ( iInitialBarWidth < 1 ) iInitialBarWidth = 1;
 
+    SetWindowPos( hWndToolbar, NULL, 0, 0, iInitialBarWidth, 31,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
+    SetWindowPos( hWndPosn, NULL, 0, 0, iInitialBarWidth, 20,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
+
+    REBARBANDINFOA rbbi;
+    ZeroMemory( &rbbi, sizeof( rbbi ) );
+    rbbi.cbSize = sizeof( rbbi );
+    rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
     rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT;
-    rbbi.lpText = TEXT( "" );
     rbbi.hwndChild = hWndToolbar;
-    rbbi.cxMinChild = rbbi.cyIntegral = 0;
+    rbbi.cxMinChild = 1;
     rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 31;
-    SendMessage( hWndRebar, RB_INSERTBAND, -1, (LPARAM)&rbbi );
+    rbbi.cyIntegral = 0;
+    rbbi.cx = iInitialBarWidth;
 
+    if ( !SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi ) )
+        return NULL;
+
+    ZeroMemory( &rbbi, sizeof( rbbi ) );
+    rbbi.cbSize = sizeof( rbbi );
+    rbbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
     rbbi.fStyle = RBBS_NOGRIPPER | RBBS_VARIABLEHEIGHT | RBBS_BREAK;
-    rbbi.lpText = TEXT( "" );
     rbbi.hwndChild = hWndPosn;
+    rbbi.cxMinChild = 1;
     rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
-    SendMessage( hWndRebar, RB_INSERTBAND, -1, (LPARAM)&rbbi );
+    rbbi.cyIntegral = 0;
+    rbbi.cx = iInitialBarWidth;
+
+    if ( !SendMessageA( hWndRebar, RB_INSERTBANDA, ( WPARAM )-1, ( LPARAM )&rbbi ) )
+        return NULL;
 
     // Give the rebar a real initial size before SizeWindows reads its height.
     // There is no RB_AUTOSIZE message on the Win98-era common-controls API;
     // resizing the rebar causes it to lay out its bands and children.
-    RECT rcOwnerClient;
-    GetClientRect( hWndOwner, &rcOwnerClient );
-    int iInitialBarWidth = rcOwnerClient.right - rcOwnerClient.left;
     int iInitialBarHeight = 51; // 31px toolbar band + 20px position band
     SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iInitialBarHeight,
                   SWP_NOZORDER | SWP_NOACTIVATE );
