@@ -387,8 +387,13 @@ DWORD WINAPI GameThread( LPVOID lpParameter )
             PostMessage( g_hWnd, WM_COMMAND, ID_GAMEERROR, ge );
         else if ( bChangingState )
             PFD_StartupLogA( "GameThread state change completed.\r\n" );
+
+        if ( bChangingState ) PFD_StartupLogA( "GameThread calling first Logic() on new state.\r\n" );
         pGameState->Logic();
+        if ( bChangingState ) PFD_StartupLogA( "GameThread first Logic() on new state returned.\r\n" );
+        if ( bChangingState ) PFD_StartupLogA( "GameThread calling first Render() on new state.\r\n" );
         pGameState->Render();
+        if ( bChangingState ) PFD_StartupLogA( "GameThread first Render() on new state returned.\r\n" );
     }
 
     delete pGameState;

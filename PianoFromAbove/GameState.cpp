@@ -279,8 +279,10 @@ GameState::GameError SplashScreen::Logic()
 
     // Time stuff
     long long llMaxTime = m_MIDI.GetInfo().llTotalMicroSecs + 500000;
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic reading timer.\r\n" );
     long long llElapsed = m_Timer.GetMicroSecs();
     m_Timer.Start();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic timer updated.\r\n" );
 
     // If we just paused, kill the music. SetVolume is better than AllNotesOff
     if ( ( bPausedChanged || bMuteChanged ) && ( m_bPaused || m_bMute ) )
@@ -294,7 +296,9 @@ GameState::GameError SplashScreen::Logic()
     long long llEndTime = m_llStartTime + TimeSpan;
 
     // Needs start time to be set. For creating textparticles.
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic calling RenderGlobals.\r\n" );
     RenderGlobals();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic RenderGlobals returned.\r\n" );
 
     // Advance end position
     int iEventCount = (int)m_vEvents.size();
@@ -1070,6 +1074,10 @@ GameState::GameError MainScreen::MsgProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 GameState::GameError MainScreen::Logic( void )
 {
+    static bool s_bPFDTraceFirstLogic = true;
+    const bool bPFDTrace = s_bPFDTraceFirstLogic;
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic entered.\r\n" );
+
     static Config &config = Config::GetConfig();
     static PlaybackSettings &cPlayback = config.GetPlaybackSettings();
     static const ViewSettings &cView = config.GetViewSettings();
@@ -1108,7 +1116,9 @@ GameState::GameError MainScreen::Logic( void )
     m_iStartNote = min( cVisual.iFirstKey, cVisual.iLastKey );
     m_iEndNote = max( cVisual.iFirstKey, cVisual.iLastKey );
     m_bShowFPS = cVideo.bShowFPS;
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic calling Renderer::SetLimitFPS.\r\n" );
     m_pRenderer->SetLimitFPS( cVideo.bLimitFPS );
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic Renderer::SetLimitFPS returned.\r\n" );
     if ( cVisual.iBkgColor != m_csBackground.iOrigBGR ) m_csBackground.SetColor( cVisual.iBkgColor, 0.7f, 1.3f );
     m_bInstructions &= m_bPaused;
 
@@ -1140,7 +1150,11 @@ GameState::GameError MainScreen::Logic( void )
 
     // If speed has been changed, rejigger inputpos
     if ( bSpeedChanged && !m_bInTransition )
+    {
+        if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic calling FindInputPos.\r\n" );
         FindInputPos();
+        if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic FindInputPos returned.\r\n" );
+    }
 
     if ( bLearnModeChanged )
         InitLearning();
@@ -1258,8 +1272,11 @@ GameState::GameError MainScreen::Logic( void )
     if ( m_tpMessage.IsAlive() ) m_tpMessage.Logic( llElapsed );
     if ( m_tpLongMessage.IsAlive() ) m_tpLongMessage.Logic( llElapsed );
 
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic calling AdvanceIterators.\r\n" );
     AdvanceIterators( m_llStartTime, false );
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic calling ProcessInput.\r\n" );
     ProcessInput();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Logic input processing completed.\r\n" );
 
     // Update the position slider
     long long llFirstTime = GetMinTime();
@@ -1284,6 +1301,11 @@ GameState::GameError MainScreen::Logic( void )
             if ( m_eGameMode == Play && m_iShowTop10 == -1 )
                 m_iShowTop10 = m_Score.AddToTop10( m_pFileInfo );
         }
+    }
+    if ( bPFDTrace )
+    {
+        PFD_StartupLogA( "MainScreen::Logic completed successfully.\r\n" );
+        s_bPFDTraceFirstLogic = false;
     }
     return Success;
 }
@@ -1932,22 +1954,44 @@ const float MainScreen::KeyRatio = 0.1775f;
 
 GameState::GameError MainScreen::Render() 
 {
+    static bool s_bPFDTraceFirstRender = true;
+    const bool bPFDTrace = s_bPFDTraceFirstRender;
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render entered.\r\n" );
+
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render calling ResetDeviceIfNeeded.\r\n" );
     if ( FAILED( m_pRenderer->ResetDeviceIfNeeded() ) ) return DirectXError;
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render ResetDeviceIfNeeded returned.\r\n" );
 
     m_pRenderer->Clear( 0x00000000 );
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render Clear returned.\r\n" );
 
     m_pRenderer->BeginScene();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render BeginScene returned.\r\n" );
     RenderLines();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render RenderLines returned.\r\n" );
     RenderNotes();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render RenderNotes returned.\r\n" );
     RenderLabels();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render RenderLabels returned.\r\n" );
     if ( m_bShowKB )
+    {
         RenderKeys();
+        if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render RenderKeys returned.\r\n" );
+    }
     RenderBorder();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render RenderBorder returned.\r\n" );
     RenderText();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render RenderText returned.\r\n" );
     m_pRenderer->EndScene();
+    if ( bPFDTrace ) PFD_StartupLogA( "MainScreen::Render EndScene returned.\r\n" );
 
     // Present the backbuffer contents to the display
     m_pRenderer->Present();
+    if ( bPFDTrace )
+    {
+        PFD_StartupLogA( "MainScreen::Render Present returned; first render completed.\r\n" );
+        s_bPFDTraceFirstRender = false;
+    }
     return Success;
 }
 

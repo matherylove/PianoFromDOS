@@ -9,6 +9,8 @@
 *************************************************************************************************/
 #include "Renderer.h"
 
+extern void PFD_StartupLogA( const char *text );
+
 namespace
 {
     typedef IDirect3D9* ( WINAPI *PFD_Direct3DCreate9Fn )( UINT );
@@ -266,6 +268,40 @@ HRESULT D3D9Renderer::DrawTextW( const WCHAR *sText, FontSize fsFont, LPRECT rcP
                          fsFont == SmallComic ? m_pSmallComicFont :
                          fsFont == Medium ? m_pMediumFont :
                          fsFont == Large ? m_pLargeFont : m_pMediumFont );
+
+    // D3DX9's Unicode text path is not reliable on Windows 95/98/ME.
+    // PianoFromDOS itself gets Unicode API coverage from MSLU, but D3DX9.dll
+    // is a separate module and does not run through our unicows import layer.
+    // Render text through ID3DXFont::DrawTextA on Win9x instead.
+    if ( ( GetVersion() & 0x80000000UL ) != 0 )
+    {
+        static bool s_bLoggedAnsiTextFallback = false;
+        if ( !s_bLoggedAnsiTextFallback )
+        {
+            PFD_StartupLogA( "Renderer: Win9x ANSI text fallback active (DrawTextW -> DrawTextA).\r\n" );
+            s_bLoggedAnsiTextFallback = true;
+        }
+
+        if ( !sText ) return E_INVALIDARG;
+        int iSourceChars = ( iChars < 0 ? -1 : iChars );
+        int iBytes = WideCharToMultiByte( CP_ACP, 0, sText, iSourceChars, NULL, 0, NULL, NULL );
+        if ( iBytes <= 0 ) return E_FAIL;
+
+        int iCapacity = iBytes + ( iSourceChars < 0 ? 0 : 1 );
+        char *pAnsi = new char[iCapacity];
+        int iConverted = WideCharToMultiByte( CP_ACP, 0, sText, iSourceChars, pAnsi, iBytes, NULL, NULL );
+        if ( iConverted <= 0 )
+        {
+            delete[] pAnsi;
+            return E_FAIL;
+        }
+        if ( iSourceChars >= 0 ) pAnsi[iConverted] = '\0';
+
+        INT iAnsiChars = ( iSourceChars < 0 ? -1 : iConverted );
+        INT iResult = pFont->DrawTextA( m_pTextSprite, pAnsi, iAnsiChars, rcPos, dwFormat, D3DXCOLOR( dwColor ) );
+        delete[] pAnsi;
+        return iResult ? S_OK : E_FAIL;
+    }
     
     if ( !pFont->DrawTextW( m_pTextSprite, sText, iChars, rcPos, dwFormat, D3DXCOLOR( dwColor ) ) )
         return E_FAIL;

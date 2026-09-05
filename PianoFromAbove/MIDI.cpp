@@ -8,6 +8,13 @@
 *
 *************************************************************************************************/
 #include "MIDI.h"
+
+extern void PFD_StartupLogA( const char *text );
+
+static bool PFD_MIDI_IsWin9x()
+{
+    return ( GetVersion() & 0x80000000UL ) != 0;
+}
 #include <fstream>
 
 //-----------------------------------------------------------------------------
@@ -929,7 +936,27 @@ bool MIDIOutDevice::PlayEventAcrossChannels( unsigned char cStatus, unsigned cha
 bool MIDIOutDevice::PlayEvent( unsigned char cStatus, unsigned char cParam1, unsigned char cParam2 )
 {
     if ( !m_bIsOpen ) return false;
-    return midiOutShortMsg( m_hMIDIOut, ( cParam2 << 16 ) + ( cParam1 << 8 ) + cStatus ) == MMSYSERR_NOERROR;
+
+    static int s_iPFDTraceCount = 0;
+    const bool bTrace = PFD_MIDI_IsWin9x() && s_iPFDTraceCount < 8;
+    if ( bTrace )
+    {
+        char line[160];
+        wsprintfA( line, "MIDIOutDevice::PlayEvent #%d calling midiOutShortMsg status=%02X p1=%02X p2=%02X.\r\n",
+                   s_iPFDTraceCount + 1, ( unsigned int )cStatus, ( unsigned int )cParam1, ( unsigned int )cParam2 );
+        PFD_StartupLogA( line );
+    }
+
+    MMRESULT mmResult = midiOutShortMsg( m_hMIDIOut, ( cParam2 << 16 ) + ( cParam1 << 8 ) + cStatus );
+    if ( bTrace )
+    {
+        char line[128];
+        wsprintfA( line, "MIDIOutDevice::PlayEvent #%d midiOutShortMsg returned %u.\r\n",
+                   s_iPFDTraceCount + 1, ( unsigned int )mmResult );
+        PFD_StartupLogA( line );
+        ++s_iPFDTraceCount;
+    }
+    return mmResult == MMSYSERR_NOERROR;
 }
 
 void CALLBACK MIDIOutDevice::MIDIOutProc( HMIDIOUT hmo, UINT wMsg, DWORD_PTR dwInstance,
