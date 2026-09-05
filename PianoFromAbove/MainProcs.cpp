@@ -33,12 +33,24 @@ static LRESULT CALLBACK PFD_FallbackBarProc( HWND hWnd, UINT msg, WPARAM wParam,
 {
     if ( msg == WM_COMMAND || msg == WM_NOTIFY )
         return SendMessage( GetParent( hWnd ), msg, wParam, lParam );
+    if ( msg == WM_ERASEBKGND )
+    {
+        RECT rc;
+        GetClientRect( hWnd, &rc );
+        FillRect( ( HDC )wParam, &rc, ( HBRUSH )( COLOR_BTNFACE + 1 ) );
+        return 1;
+    }
     return CallWindowProc( g_pPrevFallbackBarProc, hWnd, msg, wParam, lParam );
 }
 
 // Startup logger is implemented by PianoFromAbove.cpp and intentionally uses
 // only ANSI Win32 I/O so it is safe before/without MSLU on Win9x.
 extern void PFD_StartupLogA( const char *text );
+
+static bool PFD_IsWin9x()
+{
+    return ( GetVersion() & 0x80000000UL ) != 0;
+}
 
 //-----------------------------------------------------------------------------
 // Name: MsgProc()
@@ -675,6 +687,13 @@ LRESULT WINAPI BarProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             }
             break;
         }
+        case WM_ERASEBKGND:
+        {
+            RECT rc;
+            GetClientRect( hWnd, &rc );
+            FillRect( ( HDC )wParam, &rc, ( HBRUSH )( COLOR_BTNFACE + 1 ) );
+            return 1;
+        }
         // This makes our static text have a transparent background
         case WM_CTLCOLORSTATIC:
         {
@@ -690,6 +709,8 @@ LRESULT WINAPI BarProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                  ( lpnmhdr->idFrom == IDC_VOLUME || lpnmhdr->idFrom == IDC_SPEED || lpnmhdr->idFrom == IDC_NSPEED ) )
             {
                 LPNMCUSTOMDRAW lpnmcd = ( LPNMCUSTOMDRAW )lParam;
+                if ( PFD_IsWin9x() || g_bPFDRebarFallback )
+                    return CDRF_DODEFAULT;
                 switch ( lpnmcd->dwDrawStage )
                 {
                     case CDDS_PREPAINT:
@@ -844,10 +865,12 @@ HWND CreateRebar( HWND hWndOwner )
     if ( !hIml ) PFD_LogRebarStage( "WARNING: media toolbar image list failed to load", GetLastError() );
     else PFD_LogRebarStage( "media toolbar image list loaded", 0 );
 
+    const DWORD dwToolbarStyle = WS_CHILD | WS_VISIBLE | WS_TABSTOP | CCS_NODIVIDER | CCS_NOPARENTALIGN |
+                                 CCS_NORESIZE | TBSTYLE_TOOLTIPS | ( PFD_IsWin9x() ? 0 : TBSTYLE_FLAT );
+
     SetLastError( 0 );
     HWND hWndToolbar = CreateWindowEx( WS_EX_CONTROLPARENT, TOOLBARCLASSNAME, NULL,
-                                       WS_CHILD | WS_VISIBLE | WS_TABSTOP | CCS_NODIVIDER | CCS_NOPARENTALIGN |
-                                       CCS_NORESIZE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS,
+                                       dwToolbarStyle,
                                        0, 0, iInitialBarWidth, iToolbarHeight,
                                        hWndRebar, ( HMENU )IDC_TOPTOOLBAR, g_hInstance, NULL );
     if ( !hWndToolbar )
@@ -949,7 +972,7 @@ HWND CreateRebar( HWND hWndOwner )
 
     if ( !g_bPFDRebarFallback )
     {
-        const bool bWin9x = ( GetVersion() & 0x80000000UL ) != 0;
+        const bool bWin9x = PFD_IsWin9x();
         BOOL bToolbarBandOK = FALSE;
         BOOL bPosnBandOK = FALSE;
 
