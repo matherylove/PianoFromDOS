@@ -810,9 +810,20 @@ HWND CreateRebar( HWND hWndOwner )
     rbbi.cyMinChild = rbbi.cyChild = rbbi.cyMaxChild = 20;
     SendMessage( hWndRebar, RB_INSERTBAND, -1, (LPARAM)&rbbi );
 
-    // Force the rebar/toolbar to calculate a non-zero initial layout before SizeWindows reads its height.
+    // Give the rebar a real initial size before SizeWindows reads its height.
+    // There is no RB_AUTOSIZE message on the Win98-era common-controls API;
+    // resizing the rebar causes it to lay out its bands and children.
+    RECT rcOwnerClient;
+    GetClientRect( hWndOwner, &rcOwnerClient );
+    int iInitialBarWidth = rcOwnerClient.right - rcOwnerClient.left;
+    int iInitialBarHeight = 51; // 31px toolbar band + 20px position band
+    SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iInitialBarHeight,
+                  SWP_NOZORDER | SWP_NOACTIVATE );
     SendMessage( hWndToolbar, TB_AUTOSIZE, 0, 0 );
-    SendMessage( hWndRebar, RB_AUTOSIZE, 0, 0 );
+    int iReportedBarHeight = ( int )SendMessage( hWndRebar, RB_GETBARHEIGHT, 0, 0 );
+    if ( iReportedBarHeight > 0 && iReportedBarHeight != iInitialBarHeight )
+        SetWindowPos( hWndRebar, NULL, 0, 0, iInitialBarWidth, iReportedBarHeight,
+                      SWP_NOZORDER | SWP_NOACTIVATE );
     ShowWindow( hWndToolbar, SW_SHOWNA );
     ShowWindow( hWndPosn, SW_SHOWNA );
     ShowWindow( hWndRebar, SW_SHOWNA );
