@@ -49,9 +49,10 @@ static int PFD_StartupFailA( const char *stage, DWORD errorCode )
     wsprintfA( buffer,
                "PianoFromDOS could not start.\r\n\r\nStage: %s\r\nWin32 error: %lu\r\n\r\nSee PianoFromDOS-startup.log next to the executable.",
                stage ? stage : "unknown", ( unsigned long )errorCode );
-    PFD_StartupLogA( "FAILED: " );
-    PFD_StartupLogA( stage ? stage : "unknown" );
-    PFD_StartupLogA( "\r\n" );
+    char logLine[256];
+    wsprintfA( logLine, "FAILED: %s (Win32 error %lu)\r\n",
+               stage ? stage : "unknown", ( unsigned long )errorCode );
+    PFD_StartupLogA( logLine );
     MessageBoxA( NULL, buffer, "PianoFromDOS startup error", MB_OK | MB_ICONERROR );
     return 1;
 }
@@ -59,6 +60,53 @@ static int PFD_StartupFailA( const char *stage, DWORD errorCode )
 static bool PFD_IsWin9x()
 {
     return ( GetVersion() & 0x80000000UL ) != 0;
+}
+
+static HANDLE PFD_CreateGameThread( LPVOID lpParameter )
+{
+    // Win9x reserves/commits thread stacks differently from NT.  A zero stack
+    // size inherits the PE default and can fail on memory-constrained Win9x
+    // systems even though the process itself has already started successfully.
+    // Try conservative explicit sizes there.  NT keeps the normal default.
+    if ( !PFD_IsWin9x() )
+    {
+        SetLastError( ERROR_SUCCESS );
+        HANDLE hThread = CreateThread( NULL, 0, GameThread, lpParameter, 0, NULL );
+        if ( !hThread )
+        {
+            char line[192];
+            wsprintfA( line, "CreateThread(default stack) failed (Win32 error %lu).\r\n",
+                       ( unsigned long )GetLastError() );
+            PFD_StartupLogA( line );
+        }
+        return hThread;
+    }
+
+    const DWORD stackSizes[] = { 256UL * 1024UL, 128UL * 1024UL, 64UL * 1024UL };
+    DWORD lastThreadError = ERROR_SUCCESS;
+    for ( int i = 0; i < ( int )( sizeof( stackSizes ) / sizeof( stackSizes[0] ) ); ++i )
+    {
+        SetLastError( ERROR_SUCCESS );
+        HANDLE hThread = CreateThread( NULL, stackSizes[i], GameThread, lpParameter, 0, NULL );
+        if ( hThread )
+        {
+            char line[160];
+            wsprintfA( line, "Game thread created with %lu KiB stack.\r\n",
+                       ( unsigned long )( stackSizes[i] / 1024UL ) );
+            PFD_StartupLogA( line );
+            return hThread;
+        }
+
+        lastThreadError = GetLastError();
+        char line[192];
+        wsprintfA( line, "CreateThread(%lu KiB stack) failed (Win32 error %lu).\r\n",
+                   ( unsigned long )( stackSizes[i] / 1024UL ),
+                   ( unsigned long )lastThreadError );
+        PFD_StartupLogA( line );
+    }
+
+    SetLastError( lastThreadError );
+    return NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -195,10 +243,16 @@ INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdL
     HACCEL hAccel = LoadAccelerators( hInstance, MAKEINTRESOURCE( IDA_MAINMENU ) );
     if ( !hAccel ) return PFD_StartupFailA( "LoadAccelerators", GetLastError() );
 
-    // Get the game going
-    HANDLE hThread = CreateThread( NULL, 0, GameThread, new SplashScreen( NULL, NULL ), 0, NULL );
-    if ( !hThread ) return PFD_StartupFailA( "CreateThread", GetLastError() );
-    PFD_StartupLogA( "Game thread created.\r\n" );
+    // Get the game going. Keep the startup state alive across Win9x stack-size retries.
+    SplashScreen *pInitialState = new SplashScreen( NULL, NULL );
+    HANDLE hThread = PFD_CreateGameThread( pInitialState );
+    if ( !hThread )
+    {
+        DWORD threadError = GetLastError();
+        delete pInitialState;
+        return PFD_StartupFailA( "CreateThread", threadError );
+    }
+    PFD_StartupLogA( "Game thread is running.\r\n" );
 
     // Set up GUI and show
     SetPlayMode( GameState::Splash );

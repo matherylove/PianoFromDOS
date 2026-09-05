@@ -740,6 +740,39 @@ static void PFD_LayoutFallbackBar( HWND hWndBar, HWND hWndToolbar, HWND hWndPosn
                   SWP_NOZORDER | SWP_NOACTIVATE );
 }
 
+static HWND PFD_ReplaceFailedRebarWithStatic( HWND hWndOwner, HWND hWndRebar,
+                                                HWND hWndToolbar, HWND hWndPosn,
+                                                int iWidth, int iToolbarHeight, int iPosnHeight )
+{
+    SetLastError( ERROR_SUCCESS );
+    HWND hWndFallback = CreateWindowExA( WS_EX_CONTROLPARENT, "STATIC", "",
+        WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+        0, 0, iWidth, iToolbarHeight + iPosnHeight,
+        hWndOwner, ( HMENU )IDC_TOPREBAR, g_hInstance, NULL );
+    if ( !hWndFallback )
+    {
+        PFD_LogRebarStage( "FAILED creating replacement static bar container", GetLastError() );
+        return NULL;
+    }
+
+    // Move the live controls out of the failed rebar before destroying it.
+    // Otherwise DestroyWindow(rebar) would recursively destroy the toolbar.
+    SetParent( hWndToolbar, hWndFallback );
+    SetParent( hWndPosn, hWndFallback );
+    DestroyWindow( hWndRebar );
+
+    g_pPrevFallbackBarProc = ( WNDPROC )SetWindowLongPtr( hWndFallback, GWLP_WNDPROC,
+                                                          ( LONG_PTR )PFD_FallbackBarProc );
+    g_bPFDRebarFallback = true;
+    PFD_LayoutFallbackBar( hWndFallback, hWndToolbar, hWndPosn,
+                           iWidth, iToolbarHeight, iPosnHeight );
+    ShowWindow( hWndToolbar, SW_SHOWNA );
+    ShowWindow( hWndPosn, SW_SHOWNA );
+    ShowWindow( hWndFallback, SW_SHOWNA );
+    PFD_LogRebarStage( "failed native rebar replaced by static manual-layout container", 0 );
+    return hWndFallback;
+}
+
 static BOOL PFD_GetPositionBandRect( RECT *prc )
 {
     if ( !prc || !g_hWndBar ) return FALSE;
@@ -968,12 +1001,20 @@ HWND CreateRebar( HWND hWndOwner )
         if ( !bToolbarBandOK || !bPosnBandOK )
         {
             DWORD dwErr = GetLastError();
-            PFD_LogRebarStage( !bToolbarBandOK ? "rebar toolbar band insertion failed; switching to manual layout" :
-                                                  "rebar position band insertion failed; switching to manual layout",
+            PFD_LogRebarStage( !bToolbarBandOK ? "rebar toolbar band insertion failed; replacing rebar" :
+                                                  "rebar position band insertion failed; replacing rebar",
                                dwErr );
-            while ( SendMessage( hWndRebar, RB_GETBANDCOUNT, 0, 0 ) > 0 )
-                SendMessage( hWndRebar, RB_DELETEBAND, 0, 0 );
-            g_bPFDRebarFallback = true;
+            HWND hWndReplacement = PFD_ReplaceFailedRebarWithStatic( hWndOwner, hWndRebar,
+                                                                       hWndToolbar, hWndPosn,
+                                                                       iInitialBarWidth,
+                                                                       iToolbarHeight, iPosnHeight );
+            if ( !hWndReplacement )
+            {
+                DWORD dwFallbackErr = GetLastError();
+                SetLastError( dwFallbackErr );
+                return NULL;
+            }
+            hWndRebar = hWndReplacement;
         }
         else
             PFD_LogRebarStage( "both rebar bands inserted", 0 );
