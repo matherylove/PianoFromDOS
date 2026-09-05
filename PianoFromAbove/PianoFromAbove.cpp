@@ -97,13 +97,29 @@ INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdL
 
     srand( ( unsigned )time( NULL ) );
 
-    // Ensure that the common control DLL is loaded. 
+    // Initialize the classic common controls first.  This entry point exists on
+    // the original Win9x common-controls DLLs and is sufficient as a safe
+    // baseline.  Then request the extra rebar/cool classes when supported.
+    InitCommonControls();
+    PFD_StartupLogA( "InitCommonControls completed.\r\n" );
+
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof( INITCOMMONCONTROLSEX );
-    icex.dwICC  = ICC_WIN95_CLASSES | ICC_COOL_CLASSES | ICC_STANDARD_CLASSES;
-    if ( !InitCommonControlsEx(&icex) )
-        return PFD_StartupFailA( "InitCommonControlsEx", GetLastError() );
-    PFD_StartupLogA( "Common Controls initialized.\r\n" );
+    icex.dwICC  = ICC_WIN95_CLASSES | ICC_COOL_CLASSES;
+    SetLastError( ERROR_SUCCESS );
+    if ( !InitCommonControlsEx( &icex ) )
+    {
+        DWORD err = GetLastError();
+        char ccLog[160];
+        wsprintfA( ccLog,
+                   "WARNING: InitCommonControlsEx returned FALSE (Win32 error %lu); continuing with classic controls.\r\n",
+                   ( unsigned long )err );
+        PFD_StartupLogA( ccLog );
+    }
+    else
+    {
+        PFD_StartupLogA( "InitCommonControlsEx completed.\r\n" );
+    }
 
     // Initialize COM. For the SH* functions
     HRESULT hr = CoInitialize( NULL );
