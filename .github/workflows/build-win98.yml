@@ -38,30 +38,82 @@ jobs:
           mkdir -p "$RUNNER_TEMP/mingw-win98"
           tar --zstd -xf "$RUNNER_TEMP/$MINGW_LITE_ARCHIVE" -C "$RUNNER_TEMP/mingw-win98"
 
-      - name: Locate cross compiler
+      - name: Locate cross compiler and binutils
         shell: bash
         run: |
           set -euo pipefail
-          cxx="$(find "$RUNNER_TEMP/mingw-win98" \( -type f -o -type l \) -name '*-g++' -perm -111 -print -quit)"
-          if [[ -z "$cxx" ]]; then
-            echo "Could not find the cross g++ executable" >&2
-            find "$RUNNER_TEMP/mingw-win98" -maxdepth 4 -type f | sed -n '1,200p' 
+          root="$RUNNER_TEMP/mingw-win98"
+
+          # mingw-lite's cross archives are assembled from multiple build stages.
+          # GCC can live under AAB/gcc/... while target binutils live elsewhere, so
+          # never assume that gcc/g++/ar/windres share one directory.
+          cxx="$(find "$root" \( -type f -o -type l \) -name '*-g++' -print -quit)"
+          if [[ -z "$cxx" || ! -x "$cxx" ]]; then
+            echo "Could not find an executable cross g++ in $root" >&2
+            find "$root" -type f -o -type l | sed -n '1,240p'
             exit 1
           fi
-          prefix="${cxx%-g++}"
-          for tool in gcc g++ ar ranlib strip windres objdump; do
-            test -x "${prefix}-${tool}" || { echo "Missing ${prefix}-${tool}" >&2; exit 1; }
-          done
+
+          triplet="$(basename "$cxx")"
+          triplet="${triplet%-g++}"
+          echo "Detected target triplet: $triplet"
+
+          find_tool() {
+            local tool="$1"
+            local candidate=""
+
+            # Prefer the canonical target-prefixed spelling anywhere in the archive.
+            candidate="$(find "$root" \( -type f -o -type l \) -path '*/usr/local/bin/*' -name "${triplet}-${tool}" -print -quit)"
+            if [[ -z "$candidate" ]]; then
+              candidate="$(find "$root" \( -type f -o -type l \) -name "${triplet}-${tool}" -print -quit)"
+            fi
+
+            # GCC also ships plugin-aware wrappers named gcc-ar/gcc-ranlib.
+            if [[ -z "$candidate" && "$tool" == "ar" ]]; then
+              candidate="$(find "$root" \( -type f -o -type l \) -name "${triplet}-gcc-ar" -print -quit)"
+            elif [[ -z "$candidate" && "$tool" == "ranlib" ]]; then
+              candidate="$(find "$root" \( -type f -o -type l \) -name "${triplet}-gcc-ranlib" -print -quit)"
+            fi
+
+            if [[ -z "$candidate" || ! -x "$candidate" ]]; then
+              echo "Could not find executable tool for ${triplet}-${tool}" >&2
+              echo "Candidates containing '${tool}':" >&2
+              find "$root" \( -type f -o -type l \) -iname "*${tool}*" -print | sed -n '1,120p' >&2
+              return 1
+            fi
+
+            printf '%s\n' "$candidate"
+          }
+
+          cc="$(find_tool gcc)"
+          ar="$(find_tool ar)"
+          ranlib="$(find_tool ranlib)"
+          strip="$(find_tool strip)"
+          windres="$(find_tool windres)"
+          objdump="$(find_tool objdump)"
+          ld="$(find_tool ld)"
+
           {
-            echo "PFD_CC=${prefix}-gcc"
-            echo "PFD_CXX=${prefix}-g++"
-            echo "PFD_AR=${prefix}-ar"
-            echo "PFD_RANLIB=${prefix}-ranlib"
-            echo "PFD_STRIP=${prefix}-strip"
-            echo "PFD_WINDRES=${prefix}-windres"
-            echo "PFD_OBJDUMP=${prefix}-objdump"
+            echo "PFD_CC=$cc"
+            echo "PFD_CXX=$cxx"
+            echo "PFD_AR=$ar"
+            echo "PFD_RANLIB=$ranlib"
+            echo "PFD_STRIP=$strip"
+            echo "PFD_WINDRES=$windres"
+            echo "PFD_OBJDUMP=$objdump"
+            echo "PFD_LD=$ld"
           } >> "$GITHUB_ENV"
-          "${prefix}-g++" --version
+
+          echo "Resolved tools:"
+          printf '  CC      %s\n' "$cc"
+          printf '  CXX     %s\n' "$cxx"
+          printf '  AR      %s\n' "$ar"
+          printf '  RANLIB  %s\n' "$ranlib"
+          printf '  STRIP   %s\n' "$strip"
+          printf '  WINDRES %s\n' "$windres"
+          printf '  OBJDUMP %s\n' "$objdump"
+          printf '  LD      %s\n' "$ld"
+          "$cxx" --version
 
       - name: Build libunicows import library
         shell: bash
@@ -71,7 +123,7 @@ jobs:
           git -C "$RUNNER_TEMP/libunicows" checkout --detach "$LIBUNICOWS_COMMIT"
           make -C "$RUNNER_TEMP/libunicows/src" -f makefile.mingw32 \
             CC="$PFD_CC" \
-            LD="${PFD_CC%-gcc}-ld" \
+            LD="$PFD_LD" \
             AR="$PFD_AR" \
             RANLIB="$PFD_RANLIB" \
             STRIP="$PFD_STRIP" \
@@ -91,6 +143,10 @@ jobs:
           set(CMAKE_C_COMPILER "$PFD_CC")
           set(CMAKE_CXX_COMPILER "$PFD_CXX")
           set(CMAKE_RC_COMPILER "$PFD_WINDRES")
+          set(CMAKE_AR "$PFD_AR")
+          set(CMAKE_RANLIB "$PFD_RANLIB")
+          set(CMAKE_STRIP "$PFD_STRIP")
+          set(CMAKE_LINKER "$PFD_LD")
           set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
           TOOLCHAIN
 
