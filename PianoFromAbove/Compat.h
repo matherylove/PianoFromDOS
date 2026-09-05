@@ -22,6 +22,7 @@
 #include <windows.h>
 #include <tchar.h>
 #include <shlobj.h>
+#include <commdlg.h>
 #include <stdio.h>
 #include <wchar.h>
 #include <stdarg.h>
@@ -182,3 +183,4 @@ bool PFD_GetSpecialFolderPathA(int csidl, char *outPath, size_t outCount);
 bool PFD_GetSpecialFolderPathW(int csidl, wchar_t *outPath, size_t outCount);
 std::string PFD_WidePathToAnsi(const wchar_t *path);
 bool PFD_GetFileSizeW(const wchar_t *path, DWORD *fileSizeLow);
+BOOL PFD_GetOpenFileNameCompat(OPENFILENAMEW *ofn);

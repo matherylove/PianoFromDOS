@@ -777,7 +777,7 @@ INT_PTR WINAPI LibraryProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                     ofn.nMaxFile = sizeof( sFilename ) / sizeof( TCHAR );
                     ofn.lpstrTitle = TEXT( "Please select a song to add to the library" );
                     ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-                    if ( !GetOpenFileName( &ofn ) ) return TRUE;
+                    if ( !PFD_GetOpenFileNameCompat( &ofn ) ) return TRUE;
 
                     // Prep the item structure
                     HWND hWndLibrary = GetDlgItem( hWnd, IDC_LIBRARY );

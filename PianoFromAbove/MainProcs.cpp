@@ -94,7 +94,7 @@ LRESULT WINAPI WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                     ofn.nMaxFile = sizeof( sFilename ) / sizeof( TCHAR );
                     ofn.lpstrTitle = TEXT( "Please select a song to play" );
                     ofn.Flags = OFN_EXPLORER | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-                    if ( GetOpenFileName( &ofn ) )
+                    if ( PFD_GetOpenFileNameCompat( &ofn ) )
                         PlayFile( sFilename, ePlayMode, iId == ID_FILE_PRACTICESONGCUSTOM, true );
                     return 0;
                 }
@@ -123,7 +123,7 @@ LRESULT WINAPI WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                     ofn.nMaxFile = sizeof( sFilename ) / sizeof( TCHAR );
                     ofn.lpstrTitle = TEXT( "Please select a song to add to the library" );
                     ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-                    if ( !GetOpenFileName( &ofn ) ) return 0;
+                    if ( !PFD_GetOpenFileNameCompat( &ofn ) ) return 0;
 
                     HWND hWndLib = GetDlgItem( g_hWndLibDlg, IDC_LIBRARYFILES );
                     static SongLibrary &cLibrary = Config::GetConfig().GetSongLibrary();

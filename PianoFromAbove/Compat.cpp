@@ -11,6 +11,8 @@
 
 #include <stdlib.h>
 
+extern void PFD_StartupLogA(const char *text);
+
 void PFD_FillSolidRect(HDC hdc, const RECT *rc, COLORREF color)
 {
     if (!hdc || !rc) return;
@@ -112,3 +114,176 @@ bool PFD_GetFileSizeW(const wchar_t *path, DWORD *fileSizeLow)
     *fileSizeLow = data.nFileSizeLow;
     return true;
 }
+
+static bool PFD_IsWin9xCompat()
+{
+    return (GetVersion() & 0x80000000UL) != 0;
+}
+
+static bool PFD_WideStringToAnsiBuffer(const wchar_t *src, char *dst, size_t dstCount)
+{
+    if (!dst || dstCount == 0) return false;
+    dst[0] = 0;
+    if (!src) return true;
+    int n = WideCharToMultiByte(CP_ACP, 0, src, -1, dst, (int)dstCount, NULL, NULL);
+    if (n <= 0)
+    {
+        dst[0] = 0;
+        return false;
+    }
+    dst[dstCount - 1] = 0;
+    return true;
+}
+
+static bool PFD_WideMultiStringToAnsiBuffer(const wchar_t *src, char *dst, size_t dstCount)
+{
+    if (!dst || dstCount < 2) return false;
+    dst[0] = dst[1] = 0;
+    if (!src) return true;
+
+    size_t used = 0;
+    const wchar_t *cur = src;
+    while (*cur)
+    {
+        int required = WideCharToMultiByte(CP_ACP, 0, cur, -1, NULL, 0, NULL, NULL);
+        if (required <= 0 || used + (size_t)required + 1 > dstCount) return false;
+        if (!WideCharToMultiByte(CP_ACP, 0, cur, -1, dst + used, required, NULL, NULL)) return false;
+        used += (size_t)required;
+        cur += wcslen(cur) + 1;
+    }
+    if (used >= dstCount) return false;
+    dst[used] = 0; // second NUL terminator for the filter MULTI_SZ
+    return true;
+}
+
+static bool PFD_AnsiMultiStringToWideBuffer(const char *src, wchar_t *dst, size_t dstCount)
+{
+    if (!src || !dst || dstCount < 2) return false;
+    dst[0] = dst[1] = 0;
+
+    size_t used = 0;
+    const char *cur = src;
+    while (*cur)
+    {
+        int required = MultiByteToWideChar(CP_ACP, 0, cur, -1, NULL, 0);
+        if (required <= 0 || used + (size_t)required + 1 > dstCount) return false;
+        if (!MultiByteToWideChar(CP_ACP, 0, cur, -1, dst + used, required)) return false;
+        used += (size_t)required;
+        cur += strlen(cur) + 1;
+    }
+    if (used >= dstCount) return false;
+    dst[used] = 0;
+    return true;
+}
+
+static void PFD_RecomputeOpenFileOffsets(OPENFILENAMEW *ofn)
+{
+    if (!ofn || !ofn->lpstrFile || !*ofn->lpstrFile) return;
+
+    const wchar_t *first = ofn->lpstrFile;
+    size_t firstLen = wcslen(first);
+    const wchar_t *second = first + firstLen + 1;
+
+    if (*second)
+    {
+        // Explorer-style multi-select: directory\0file1\0file2\0\0.
+        ofn->nFileOffset = (WORD)(firstLen + 1);
+        ofn->nFileExtension = 0;
+        return;
+    }
+
+    size_t fileOffset = 0;
+    size_t extOffset = 0;
+    for (size_t i = 0; i < firstLen; ++i)
+    {
+        if (first[i] == L'\\' || first[i] == L'/')
+        {
+            fileOffset = i + 1;
+            extOffset = 0;
+        }
+        else if (first[i] == L'.')
+        {
+            extOffset = i + 1;
+        }
+    }
+    ofn->nFileOffset = (WORD)fileOffset;
+    ofn->nFileExtension = (WORD)extOffset;
+}
+
+BOOL PFD_GetOpenFileNameCompat(OPENFILENAMEW *ofn)
+{
+    if (!ofn) return FALSE;
+
+    if (!PFD_IsWin9xCompat())
+        return GetOpenFileNameW(ofn);
+
+    const DWORD bufferChars = ofn->nMaxFile ? ofn->nMaxFile : 1024;
+    char *fileA = new char[bufferChars];
+    char *filterA = new char[2048];
+    char titleA[512] = { 0 };
+    char initialDirA[MAX_PATH] = { 0 };
+    char defExtA[64] = { 0 };
+    memset(fileA, 0, bufferChars);
+    memset(filterA, 0, 2048);
+
+    if (ofn->lpstrFile && *ofn->lpstrFile)
+        PFD_WideStringToAnsiBuffer(ofn->lpstrFile, fileA, bufferChars);
+    if (!PFD_WideMultiStringToAnsiBuffer(ofn->lpstrFilter, filterA, 2048))
+    {
+        delete [] fileA;
+        delete [] filterA;
+        return FALSE;
+    }
+    PFD_WideStringToAnsiBuffer(ofn->lpstrTitle, titleA, sizeof(titleA));
+    PFD_WideStringToAnsiBuffer(ofn->lpstrInitialDir, initialDirA, sizeof(initialDirA));
+    PFD_WideStringToAnsiBuffer(ofn->lpstrDefExt, defExtA, sizeof(defExtA));
+
+    OPENFILENAMEA a;
+    ZeroMemory(&a, sizeof(a));
+#ifdef OPENFILENAME_SIZE_VERSION_400
+    a.lStructSize = OPENFILENAME_SIZE_VERSION_400;
+#else
+    a.lStructSize = sizeof(OPENFILENAMEA);
+#endif
+    a.hwndOwner = ofn->hwndOwner;
+    a.hInstance = ofn->hInstance;
+    a.lpstrFilter = ofn->lpstrFilter ? filterA : NULL;
+    a.nFilterIndex = ofn->nFilterIndex;
+    a.lpstrFile = fileA;
+    a.nMaxFile = bufferChars;
+    a.lpstrInitialDir = (ofn->lpstrInitialDir && *ofn->lpstrInitialDir) ? initialDirA : NULL;
+    a.lpstrTitle = (ofn->lpstrTitle && *ofn->lpstrTitle) ? titleA : NULL;
+    a.Flags = ofn->Flags;
+    a.lpstrDefExt = (ofn->lpstrDefExt && *ofn->lpstrDefExt) ? defExtA : NULL;
+    a.lCustData = ofn->lCustData;
+    a.lpfnHook = (LPOFNHOOKPROC)ofn->lpfnHook;
+
+    SetLastError(ERROR_SUCCESS);
+    BOOL ok = GetOpenFileNameA(&a);
+    if (!ok)
+    {
+        DWORD dlgError = CommDlgExtendedError();
+        if (dlgError != 0)
+        {
+            char line[160];
+            wsprintfA(line, "GetOpenFileNameA failed on Win9x (CommDlgExtendedError=0x%08lX)\r\n",
+                      (unsigned long)dlgError);
+            PFD_StartupLogA(line);
+        }
+    }
+    if (ok)
+    {
+        if (!PFD_AnsiMultiStringToWideBuffer(fileA, ofn->lpstrFile, ofn->nMaxFile))
+            ok = FALSE;
+        else
+        {
+            ofn->nFilterIndex = a.nFilterIndex;
+            PFD_RecomputeOpenFileOffsets(ofn);
+        }
+    }
+
+    delete [] fileA;
+    delete [] filterA;
+    return ok;
+}
+
