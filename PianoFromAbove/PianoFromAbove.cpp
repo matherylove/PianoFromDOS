@@ -86,13 +86,18 @@ static HANDLE PFD_CreateGameThread( LPVOID lpParameter )
     DWORD lastThreadError = ERROR_SUCCESS;
     for ( int i = 0; i < ( int )( sizeof( stackSizes ) / sizeof( stackSizes[0] ) ); ++i )
     {
+        // Windows 95/98/ME require a valid lpThreadId pointer.  Passing NULL,
+        // although accepted by NT-family Windows, returns ERROR_INVALID_PARAMETER
+        // (87) on Win9x.
+        DWORD threadId = 0;
         SetLastError( ERROR_SUCCESS );
-        HANDLE hThread = CreateThread( NULL, stackSizes[i], GameThread, lpParameter, 0, NULL );
+        HANDLE hThread = CreateThread( NULL, stackSizes[i], GameThread, lpParameter, 0, &threadId );
         if ( hThread )
         {
-            char line[160];
-            wsprintfA( line, "Game thread created with %lu KiB stack.\r\n",
-                       ( unsigned long )( stackSizes[i] / 1024UL ) );
+            char line[192];
+            wsprintfA( line, "Game thread created with %lu KiB stack (thread id %lu).\r\n",
+                       ( unsigned long )( stackSizes[i] / 1024UL ),
+                       ( unsigned long )threadId );
             PFD_StartupLogA( line );
             return hThread;
         }
