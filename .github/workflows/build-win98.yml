@@ -1,0 +1,134 @@
+name: Build PianoFromDOS for Windows 98
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MINGW_LITE_VERSION: 16.2.0-r1
+  MINGW_LITE_ARCHIVE: x-mingw32_686-msvcrt_win98-16.2.0-r1.tar.zst
+  MINGW_LITE_SHA256: a7499239d900ea4efe74df7dbd0db0c5c14abbd5980c0d324aa90cd2391a9879
+  LIBUNICOWS_COMMIT: 394c41a69ae54d74886a387a1bebaf59c0b95222
+
+jobs:
+  build-win98:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout PianoFromDOS
+        uses: actions/checkout@v4
+
+      - name: Install host build utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build nasm zstd
+
+      - name: Download pinned Windows 98 cross-toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/redpanda-cpp/mingw-lite/releases/download/${MINGW_LITE_VERSION}/${MINGW_LITE_ARCHIVE}"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/$MINGW_LITE_ARCHIVE" "$url"
+          echo "${MINGW_LITE_SHA256}  $RUNNER_TEMP/$MINGW_LITE_ARCHIVE" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/mingw-win98"
+          tar --zstd -xf "$RUNNER_TEMP/$MINGW_LITE_ARCHIVE" -C "$RUNNER_TEMP/mingw-win98"
+
+      - name: Locate cross compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          cxx="$(find "$RUNNER_TEMP/mingw-win98" \( -type f -o -type l \) -name '*-g++' -perm -111 -print -quit)"
+          if [[ -z "$cxx" ]]; then
+            echo "Could not find the cross g++ executable" >&2
+            find "$RUNNER_TEMP/mingw-win98" -maxdepth 4 -type f | sed -n '1,200p' 
+            exit 1
+          fi
+          prefix="${cxx%-g++}"
+          for tool in gcc g++ ar ranlib strip windres objdump; do
+            test -x "${prefix}-${tool}" || { echo "Missing ${prefix}-${tool}" >&2; exit 1; }
+          done
+          {
+            echo "PFD_CC=${prefix}-gcc"
+            echo "PFD_CXX=${prefix}-g++"
+            echo "PFD_AR=${prefix}-ar"
+            echo "PFD_RANLIB=${prefix}-ranlib"
+            echo "PFD_STRIP=${prefix}-strip"
+            echo "PFD_WINDRES=${prefix}-windres"
+            echo "PFD_OBJDUMP=${prefix}-objdump"
+          } >> "$GITHUB_ENV"
+          "${prefix}-g++" --version
+
+      - name: Build libunicows import library
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/ComputerNerd/Libunicows.git "$RUNNER_TEMP/libunicows"
+          git -C "$RUNNER_TEMP/libunicows" checkout --detach "$LIBUNICOWS_COMMIT"
+          make -C "$RUNNER_TEMP/libunicows/src" -f makefile.mingw32 \
+            CC="$PFD_CC" \
+            LD="${PFD_CC%-gcc}-ld" \
+            AR="$PFD_AR" \
+            RANLIB="$PFD_RANLIB" \
+            STRIP="$PFD_STRIP" \
+            NASM=nasm \
+            PATHSEP=/ \
+            CFLAGS="-O2 -fcommon"
+          test -f "$RUNNER_TEMP/libunicows/lib/mingw32/libunicows.a"
+          echo "PFD_UNICOWS=$RUNNER_TEMP/libunicows/lib/mingw32/libunicows.a" >> "$GITHUB_ENV"
+
+      - name: Generate CMake cross file
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/pianofromdos-win98.cmake" <<TOOLCHAIN
+          set(CMAKE_SYSTEM_NAME Windows)
+          set(CMAKE_SYSTEM_PROCESSOR x86)
+          set(CMAKE_SYSTEM_VERSION 4.10)
+          set(CMAKE_C_COMPILER "$PFD_CC")
+          set(CMAKE_CXX_COMPILER "$PFD_CXX")
+          set(CMAKE_RC_COMPILER "$PFD_WINDRES")
+          set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+          TOOLCHAIN
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-win98 -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$RUNNER_TEMP/pianofromdos-win98.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPFD_UNICOWS_LIBRARY="$PFD_UNICOWS"
+
+      - name: Build
+        run: cmake --build build-win98 --config Release --verbose
+
+      - name: Verify PE imports and architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="build-win98/package/PianoFromDOS.exe"
+          test -f "$exe"
+          file "$exe" | tee build-win98/package/PE-INFO.txt
+          file "$exe" | grep -Eqi 'PE32 executable.*Intel 80386|PE32 executable.*Intel i386'
+          "$PFD_OBJDUMP" -p "$exe" > build-win98/package/PE-IMPORTS.txt
+          grep -E 'DLL Name:' build-win98/package/PE-IMPORTS.txt || true
+          grep -Eqi 'DLL Name:.*d3dx9_30\.dll' build-win98/package/PE-IMPORTS.txt
+          if grep -Eqi 'DLL Name:.*(d3dx9_43|ucrtbase|api-ms-win|libstdc\+\+|libgcc_s|libwinpthread).*\.dll' build-win98/package/PE-IMPORTS.txt; then
+            echo "Unexpected modern runtime DLL dependency detected" >&2
+            exit 1
+          fi
+
+      - name: Strip release executable
+        shell: bash
+        run: |
+          "$PFD_STRIP" build-win98/package/PianoFromDOS.exe
+
+      - name: Upload Windows 98 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PianoFromDOS-Windows98-x86
+          path: build-win98/package/
+          if-no-files-found: error
+          compression-level: 9
